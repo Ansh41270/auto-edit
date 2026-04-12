@@ -2,6 +2,6 @@ flask>=3.0.0
 werkzeug>=3.0.0
 requests>=2.31.0
 openai-whisper>=20231117
-gunicorn
-numpy
-pillow
+gunicorn==25.3.0
+numpy==2.2.6
+pillow==12.2.0
