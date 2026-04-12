@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Thumbnail Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Outfit',sans-serif;background:#07090f;color:#e8eaf0;display:flex;height:100vh;overflow:hidden}
+.sidebar{width:220px;background:#111827;padding:20px;border-right:1px solid #1f2937;display:flex;flex-direction:column;flex-shrink:0}
+.logo{font-size:20px;font-weight:600;margin-bottom:30px;color:#fff}
+.nav a{display:block;padding:10px 12px;margin-bottom:8px;border-radius:8px;text-decoration:none;color:#9ca3af;transition:.2s;font-size:14px}
+.nav a:hover{background:#1f2937;color:white}
+.nav a.active{background:#6366f1;color:white}
+.plan-box{margin-top:auto;background:#1f2937;border-radius:10px;padding:14px;text-align:center}
+.plan-label{font-size:11px;color:#9ca3af;margin-bottom:8px}
+.plan-badge{font-size:13px;font-weight:600;color:#6366f1;margin-bottom:10px}
+.upgrade-btn{width:100%;padding:8px;border:none;border-radius:7px;background:linear-gradient(135deg,#6366f1,#a855f7);color:white;font-size:12px;cursor:pointer;transition:.2s}
+.upgrade-btn:hover{opacity:.9}
+.main{flex:1;overflow-y:auto;padding:28px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.topbar h1{font-size:22px;font-weight:600}
+.card{background:#111827;border:1px solid #1f2937;border-radius:14px;padding:22px;margin-bottom:18px}
+.card h3{font-size:15px;font-weight:600;margin-bottom:14px;color:#fff}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+/* KEY FIX: use label as upload zone, hide input, no onclick */
+.upload-zone{border:2px dashed #374151;border-radius:12px;padding:30px 20px;text-align:center;cursor:pointer;transition:.2s;display:block}
+.upload-zone:hover{border-color:#6366f1;background:rgba(99,102,241,.04)}
+.upload-zone.has-file{border-color:#10b981;background:rgba(16,185,129,.04)}
+.upload-zone input[type=file]{display:none}
+.upload-icon{font-size:36px;margin-bottom:8px}
+.upload-label-text{font-size:13px;color:#6b7280}
+.upload-preview{display:none;width:100%;border-radius:8px;margin-top:10px;max-height:160px;object-fit:cover}
+.upload-preview.show{display:block}
+.upload-name{display:none;font-size:12px;color:#10b981;margin-top:8px}
+.upload-name.show{display:block}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.field input[type=text],.field select,.field textarea{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #1f2937;background:#0b0f19;color:white;font-size:14px;font-family:'Outfit',sans-serif;outline:none;transition:.2s}
+.field input[type=text]:focus,.field select:focus,.field textarea:focus{border-color:#6366f1}
+.field select option{background:#111827}
+.field textarea{resize:vertical;min-height:70px}
+.style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+.style-pill{padding:8px 6px;border:1px solid #1f2937;border-radius:8px;background:transparent;color:#6b7280;font-size:12px;font-family:'Outfit',sans-serif;cursor:pointer;transition:.2s;text-align:center}
+.style-pill:hover{border-color:#e5e7eb;color:#e5e7eb}
+.style-pill.active{background:rgba(99,102,241,.12);border-color:#6366f1;color:#6366f1}
+.gen-btn{width:100%;padding:14px;background:linear-gradient(135deg,#6366f1,#a855f7);border:none;border-radius:10px;color:white;font-size:16px;font-weight:600;cursor:pointer;transition:.2s;font-family:'Outfit',sans-serif;margin-top:4px}
+.gen-btn:hover{opacity:.9}
+.gen-btn:disabled{opacity:.4;cursor:not-allowed}
+.loading{display:none;text-align:center;padding:40px 20px}
+.loading.show{display:block}
+.spinner{width:48px;height:48px;border:3px solid #1f2937;border-top-color:#6366f1;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:15px;color:#6b7280}
+.loading-steps{margin-top:12px;font-size:13px;color:#374151}
+.loading-step{padding:4px 0;transition:.3s}
+.loading-step.active{color:#a855f7}
+.loading-step.done{color:#10b981}
+.results{display:none}
+.results.show{display:block;animation:fadeUp .5s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.results-title{font-size:18px;font-weight:600;margin-bottom:6px;color:#fff}
+.results-sub{font-size:13px;color:#6b7280;margin-bottom:20px}
+.thumb-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+@media(max-width:700px){.thumb-grid{grid-template-columns:1fr}}
+.thumb-card{background:#111827;border:1px solid #1f2937;border-radius:12px;overflow:hidden;transition:.2s}
+.thumb-card:hover{border-color:#6366f1;transform:translateY(-2px)}
+.thumb-card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#0b0f19}
+.thumb-card-body{padding:12px}
+.thumb-card-label{font-size:12px;color:#6b7280;margin-bottom:8px}
+.thumb-card-label span{color:#a855f7;font-weight:500}
+.dl-btn{display:block;text-align:center;padding:8px;border:1px solid #1f2937;border-radius:7px;color:#e5e7eb;text-decoration:none;font-size:13px;transition:.2s;cursor:pointer;background:transparent;width:100%;font-family:'Outfit',sans-serif}
+.dl-btn:hover{border-color:#6366f1;color:#6366f1}
+.analysis-box{background:#0b0f19;border:1px solid #1f2937;border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px;color:#9ca3af;line-height:1.7}
+.analysis-box strong{color:#e5e7eb;display:block;margin-bottom:6px;font-size:14px}
+.reset-btn{padding:10px 24px;border:1px solid #374151;background:transparent;color:#6b7280;border-radius:8px;font-size:14px;cursor:pointer;transition:.2s;font-family:'Outfit',sans-serif}
+.reset-btn:hover{border-color:#e5e7eb;color:#e5e7eb}
+.err-msg{display:none;margin-top:14px;padding:12px 16px;border-radius:8px;font-size:13px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);color:#f87171}
+.err-msg.show{display:block}
+.err-msg a{color:#a855f7;font-weight:600}
+
+:root{--bg:#07090f;--surface:#0d1117;--border:#161c27;--accent1:#6c63ff;--accent2:#ff6b9d;--accent3:#00d4aa;--accent4:#ffa94d;--accent5:#4dc9f6}
+.sidebar{width:220px;background:#0a0d14;padding:20px;border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;z-index:10}
+.logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:32px;color:#fff;display:flex;align-items:center;gap:10px}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--accent1);box-shadow:0 0 12px var(--accent1);animation:pulse-dot 2s ease-in-out infinite;flex-shrink:0}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.4)}}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:4px;border-radius:10px;text-decoration:none;color:#6b7a99;font-size:14px;font-weight:500;transition:all .2s}
+.nav a:hover{color:#fff;background:rgba(255,255,255,.04);transform:translateX(3px)}
+.nav a.active{background:rgba(108,99,255,.12);color:#fff;border:1px solid rgba(108,99,255,.25)}
+.plan-box{margin-top:auto;background:linear-gradient(135deg,rgba(108,99,255,.1),rgba(255,107,157,.08));border:1px solid rgba(108,99,255,.2);border-radius:12px;padding:14px;text-align:center}
+.plan-label{font-size:10px;color:#4a5568;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+.plan-badge{font-size:13px;font-weight:600;color:var(--accent1);margin-bottom:10px}
+.upgrade-btn{width:100%;padding:8px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--accent1),var(--accent2));color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity .2s}
+.upgrade-btn:hover{opacity:.85}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="logo"><div class="logo-dot"></div>AI Edit</div>
+    <div class="nav">
+        <a href="/dashboard">🏠 Dashboard</a>
+        <a href="/auto-edit">🎬 Auto Edit</a>
+        <a href="/script">✍️ Script Writer</a>
+        <a href="/thumbnail-page" class="active">🖼️ Thumbnail</a>
+        <a href="/logout">⏻ Logout</a>
+    </div>
+    <div class="plan-box">
+        <div class="plan-label">Current Plan</div>
+        <div class="plan-badge" id="planBadge">Free</div>
+        <button class="upgrade-btn" onclick="window.location.href='/pricing'">💰 Upgrade to Pro</button>
+    </div>
+</div>
+
+<canvas id="bgCanvas" style="position:fixed;top:0;left:220px;right:0;bottom:0;width:calc(100vw - 220px);height:100vh;pointer-events:none;z-index:0"></canvas>
+
+
+<div class="main">
+    <div class="topbar">
+        <h1>🖼️ AI Thumbnail Generator</h1>
+        <div style="font-size:13px;color:#6b7280">Powered by Claude AI</div>
+    </div>
+
+    <div id="formSection">
+        <div class="grid2">
+            <div>
+                <div class="card">
+                    <h3>📎 Upload Images</h3>
+
+                    <div class="field">
+                        <label>Reference Thumbnail</label>
+                        <!-- Using <label for="refFile"> so only ONE file dialog opens -->
+                        <label class="upload-zone" id="refZone" for="refFile">
+                            <input type="file" id="refFile" accept="image/*">
+                            <div class="upload-icon">🎯</div>
+                            <div class="upload-label-text">Upload a thumbnail you like<br><span style="font-size:11px;color:#4b5563">Style & layout will be matched</span></div>
+                            <img class="upload-preview" id="refPreview" alt="">
+                            <div class="upload-name" id="refName"></div>
+                        </label>
+                    </div>
+
+                    <div class="field" style="margin-top:16px">
+                        <label>Your Photo / Face</label>
+                        <label class="upload-zone" id="userZone" for="userFile">
+                            <input type="file" id="userFile" accept="image/*">
+                            <div class="upload-icon">🤳</div>
+                            <div class="upload-label-text">Upload your photo<br><span style="font-size:11px;color:#4b5563">Will be placed in the thumbnail</span></div>
+                            <img class="upload-preview" id="userPreview" alt="">
+                            <div class="upload-name" id="userName"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="card">
+                    <h3>⚙️ Thumbnail Settings</h3>
+                    <div class="field">
+                        <label>Video Title / Topic</label>
+                        <input type="text" id="titleInput" placeholder="e.g. 10 Tips to Grow on YouTube Fast">
+                    </div>
+                    <div class="field">
+                        <label>Channel Niche</label>
+                        <select id="nicheSelect">
+                            <option value="Tech">💻 Tech & Gadgets</option>
+                            <option value="Gaming">🎮 Gaming</option>
+                            <option value="Education">📚 Education</option>
+                            <option value="Finance">💰 Finance & Business</option>
+                            <option value="Fitness">💪 Fitness & Health</option>
+                            <option value="Cooking">🍳 Cooking & Food</option>
+                            <option value="Travel">✈️ Travel & Vlog</option>
+                            <option value="Entertainment" selected>🎬 Entertainment</option>
+                            <option value="Motivation">🔥 Motivation</option>
+                            <option value="Other">🎯 Other</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Thumbnail Style</label>
+                        <div class="style-grid">
+                            <button class="style-pill active" data-style="Bold & Bright">⚡ Bold</button>
+                            <button class="style-pill" data-style="Clean & Minimal">✨ Minimal</button>
+                            <button class="style-pill" data-style="Dark & Cinematic">🎬 Cinematic</button>
+                            <button class="style-pill" data-style="Viral Clickbait">🔥 Viral</button>
+                            <button class="style-pill" data-style="Professional">💼 Pro</button>
+                            <button class="style-pill" data-style="Colorful & Fun">🎨 Colorful</button>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Extra Instructions (optional)</label>
+                        <textarea id="extraInput" placeholder="e.g. Use red colors, shocked expression, add crown..."></textarea>
+                    </div>
+                </div>
+                <button class="gen-btn" id="genBtn" onclick="generateThumbnails()">✨ Generate 2 Thumbnails</button>
+                <div class="err-msg" id="errMsg"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading" id="loadingSection">
+        <div class="spinner"></div>
+        <div class="loading-text">Claude AI is creating your thumbnails...</div>
+        <div class="loading-steps">
+            <div class="loading-step" id="step1">🔍 Analyzing reference thumbnail...</div>
+            <div class="loading-step" id="step2">✂️ Extracting your photo...</div>
+            <div class="loading-step" id="step3">🎨 Compositing on reference background...</div>
+            <div class="loading-step" id="step4">✏️ Adding professional text overlay...</div>
+            <div class="loading-step" id="step5">🖼️ Generating variant 2...</div>
+            <div class="loading-step" id="step6">✅ Finishing up...</div>
+        </div>
+    </div>
+
+    <div class="results" id="resultsSection">
+        <div class="card">
+            <div class="results-title">✅ Your Thumbnails Are Ready!</div>
+            <div class="results-sub">2 professional thumbnails — your face composited on the reference background</div>
+            <div class="analysis-box">
+                <strong>🤖 AI Analysis</strong>
+                <span id="analysisText"></span>
+            </div>
+            <div class="thumb-grid" id="thumbGrid"></div>
+            <button class="reset-btn" onclick="resetForm()">🔄 Generate New Thumbnails</button>
+        </div>
+    </div>
+</div>
+
+<script>
+fetch('/get-plan').then(r=>r.json()).then(d=>{const pb=document.getElementById('planBadge');if(d.plan==='pro')pb.textContent='⭐ Pro';else if(d.plan==='max')pb.textContent='👑 Max';else pb.textContent='Free';}).catch(()=>{});
+
+document.querySelectorAll('.style-pill').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+        document.querySelectorAll('.style-pill').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+    });
+});
+
+// File upload — no double popup issue since input is hidden, label triggers it once
+function setupUpload(inputId, previewId, nameId, zoneId) {
+    const input = document.getElementById(inputId);
+    input.addEventListener('change', function() {
+        const file = this.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const img = document.getElementById(previewId);
+            img.src = ev.target.result;
+            img.classList.add('show');
+            document.getElementById(nameId).textContent = '✅ ' + file.name;
+            document.getElementById(nameId).classList.add('show');
+            document.getElementById(zoneId).classList.add('has-file');
+        };
+        reader.readAsDataURL(file);
+    });
+}
+setupUpload('refFile','refPreview','refName','refZone');
+setupUpload('userFile','userPreview','userName','userZone');
+
+let stepInterval = null;
+function animateSteps() {
+    const steps = document.querySelectorAll('.loading-step');
+    let cur = 0;
+    steps.forEach(s=>s.className='loading-step');
+    stepInterval = setInterval(()=>{
+        if(cur>0) steps[cur-1].className='loading-step done';
+        if(cur<steps.length){ steps[cur].className='loading-step active'; cur++; }
+        else clearInterval(stepInterval);
+    }, 2200);
+}
+
+async function generateThumbnails() {
+    const refFile  = document.getElementById('refFile').files[0];
+    const userFile = document.getElementById('userFile').files[0];
+    const title    = document.getElementById('titleInput').value.trim();
+    const niche    = document.getElementById('nicheSelect').value;
+    const style    = document.querySelector('.style-pill.active')?.dataset.style || 'Bold & Bright';
+    const extra    = document.getElementById('extraInput').value.trim();
+
+    document.getElementById('errMsg').className='err-msg';
+    if(!refFile){ showErr('❌ Please upload a reference thumbnail.'); return; }
+    if(!userFile){ showErr('❌ Please upload your photo.'); return; }
+    if(!title){ showErr('❌ Please enter your video title.'); return; }
+
+    document.getElementById('formSection').style.display='none';
+    document.getElementById('loadingSection').className='loading show';
+    document.getElementById('resultsSection').className='results';
+    animateSteps();
+
+    const fd = new FormData();
+    fd.append('ref', refFile);
+    fd.append('user', userFile);
+    fd.append('title', title);
+    fd.append('niche', niche);
+    fd.append('style', style);
+    fd.append('extra', extra);
+
+    try {
+        const res = await fetch('/thumbnail', {method:'POST', body:fd});
+        const ct  = res.headers.get('content-type') || '';
+
+        clearInterval(stepInterval);
+        document.getElementById('loadingSection').className='loading';
+
+        if(!ct.includes('application/json')) {
+            const text = await res.text();
+            document.getElementById('formSection').style.display='block';
+            console.error('Server error response:', text.substring(0,600));
+            showErr('❌ Server error (status '+res.status+'). Check terminal for Python traceback.');
+            return;
+        }
+
+        const data = await res.json();
+        if(data.error) {
+            document.getElementById('formSection').style.display='block';
+            if(data.limit_reached) {
+                showErr('❌ '+data.error+' <a href="/pricing">Upgrade Now →</a>');
+            } else {
+                showErr('❌ '+data.error);
+            }
+            return;
+        }
+
+        document.getElementById('analysisText').textContent = data.analysis || '';
+        const grid = document.getElementById('thumbGrid');
+        grid.innerHTML = '';
+        data.thumbnails.forEach((thumb,i)=>{
+            const card = document.createElement('div');
+            card.className = 'thumb-card';
+            card.innerHTML = `
+                <img src="${thumb.url}?t=${Date.now()}" alt="Thumbnail ${i+1}">
+                <div class="thumb-card-body">
+                    <div class="thumb-card-label">Variant <span>${i+1}</span> — ${thumb.label}</div>
+                    <a class="dl-btn" href="${thumb.url}" download="thumbnail_${i+1}.png">⬇️ Download Thumbnail ${i+1}</a>
+                </div>`;
+            grid.appendChild(card);
+        });
+        document.getElementById('resultsSection').className='results show';
+
+    } catch(e) {
+        clearInterval(stepInterval);
+        document.getElementById('loadingSection').className='loading';
+        document.getElementById('formSection').style.display='block';
+        showErr('❌ Network error: '+e.message);
+    }
+}
+
+function showErr(msg) {
+    const el = document.getElementById('errMsg');
+    el.innerHTML = msg;
+    el.className = 'err-msg show';
+}
+
+function resetForm() {
+    document.getElementById('resultsSection').className='results';
+    document.getElementById('formSection').style.display='block';
+    ['refFile','userFile'].forEach(id=>document.getElementById(id).value='');
+    ['refPreview','userPreview'].forEach(id=>document.getElementById(id).className='upload-preview');
+    ['refName','userName'].forEach(id=>document.getElementById(id).className='upload-name');
+    ['refZone','userZone'].forEach(id=>document.getElementById(id).classList.remove('has-file'));
+    document.getElementById('titleInput').value='';
+    document.getElementById('extraInput').value='';
+}
+
+// Background animation
+(function(){const canvas=document.getElementById('bgCanvas');if(!canvas)return;const ctx=canvas.getContext('2d');function resize(){canvas.width=canvas.offsetWidth;canvas.height=canvas.offsetHeight;}resize();window.addEventListener('resize',resize);const colors=['#6c63ff','#ff6b9d','#00d4aa','#4dc9f6','#ffa94d'];const pts=Array.from({length:55},()=>({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:Math.random()*1.4+.3,dx:(Math.random()-.5)*.25,dy:(Math.random()-.5)*.25,a:Math.random()*.35+.05,c:colors[Math.floor(Math.random()*5)]}));const orbs=[{x:.75,y:.2,r:260,c:'#6c63ff',s:.0004,o:0},{x:.2,y:.75,r:200,c:'#ff6b9d',s:.0006,o:2},{x:.85,y:.8,r:180,c:'#00d4aa',s:.0005,o:4}];function draw(t){ctx.clearRect(0,0,canvas.width,canvas.height);orbs.forEach(o=>{const cx=(o.x+Math.sin(t*o.s+o.o)*.06)*canvas.width,cy=(o.y+Math.cos(t*o.s+o.o)*.06)*canvas.height,g=ctx.createRadialGradient(cx,cy,0,cx,cy,o.r);g.addColorStop(0,o.c+'14');g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,o.r,0,Math.PI*2);ctx.fill();});pts.forEach(p=>{ctx.globalAlpha=p.a;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();p.x+=p.dx;p.y+=p.dy;if(p.x<0||p.x>canvas.width)p.dx*=-1;if(p.y<0||p.y>canvas.height)p.dy*=-1;});ctx.globalAlpha=1;requestAnimationFrame(draw);}requestAnimationFrame(draw);})();
+</script>
+</body>
+</html>
