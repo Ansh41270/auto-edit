@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: auto-edit
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn auto_edit:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
