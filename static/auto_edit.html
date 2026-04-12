@@ -4,10 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Edit Studio</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Outfit',sans-serif;background:#0b0f19;color:#e5e7eb;display:flex;height:100vh;overflow:hidden}
+body{font-family:'Outfit',sans-serif;background:#07090f;color:#e8eaf0;display:flex;height:100vh;overflow:hidden}
 .sidebar{width:220px;background:#111827;padding:20px;border-right:1px solid #1f2937;display:flex;flex-direction:column;z-index:1}
 .logo{font-size:20px;font-weight:600;margin-bottom:30px;color:#fff}
 .nav a{display:block;padding:10px 12px;margin-bottom:8px;border-radius:8px;text-decoration:none;color:#9ca3af;transition:.2s;font-size:14px}
@@ -159,25 +160,42 @@ body{font-family:'Outfit',sans-serif;background:#0b0f19;color:#e5e7eb;display:fl
 .plan-price{font-size:22px;font-weight:700;color:#6366f1;margin-bottom:8px}
 .plan-feat{font-size:11px;color:#6b7280;line-height:1.8}
 .modal-close{background:transparent;border:1px solid #1f2937;color:#6b7280;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:13px;margin-top:8px}
+
+:root{--bg:#07090f;--surface:#0d1117;--border:#161c27;--accent1:#6c63ff;--accent2:#ff6b9d;--accent3:#00d4aa;--accent4:#ffa94d;--accent5:#4dc9f6}
+.sidebar{width:220px;background:#0a0d14;padding:20px;border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;z-index:10}
+.logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:32px;color:#fff;display:flex;align-items:center;gap:10px}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--accent1);box-shadow:0 0 12px var(--accent1);animation:pulse-dot 2s ease-in-out infinite;flex-shrink:0}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.4)}}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:4px;border-radius:10px;text-decoration:none;color:#6b7a99;font-size:14px;font-weight:500;transition:all .2s}
+.nav a:hover{color:#fff;background:rgba(255,255,255,.04);transform:translateX(3px)}
+.nav a.active{background:rgba(108,99,255,.12);color:#fff;border:1px solid rgba(108,99,255,.25)}
+.plan-box{margin-top:auto;background:linear-gradient(135deg,rgba(108,99,255,.1),rgba(255,107,157,.08));border:1px solid rgba(108,99,255,.2);border-radius:12px;padding:14px;text-align:center}
+.plan-label{font-size:10px;color:#4a5568;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+.plan-badge{font-size:13px;font-weight:600;color:var(--accent1);margin-bottom:10px}
+.upgrade-btn{width:100%;padding:8px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--accent1),var(--accent2));color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity .2s}
+.upgrade-btn:hover{opacity:.85}
 </style>
 </head>
 <body>
 
 <!-- SIDEBAR -->
 <div class="sidebar">
-    <div class="logo">🤖 AI Edit</div>
+    <div class="logo"><div class="logo-dot"></div>AI Edit</div>
     <div class="nav">
-        <a class="active" href="/">🎬 Auto Edit</a>
+        <a href="/dashboard">🏠 Dashboard</a>
+        <a href="/auto-edit" class="active">🎬 Auto Edit</a>
         <a href="/script">✍️ Script Writer</a>
-        <a href="/pricing">💎 Pricing</a>
+        <a href="/thumbnail-page">🖼️ Thumbnail</a>
         <a href="/logout">⏻ Logout</a>
     </div>
     <div class="plan-box">
         <div class="plan-label">Current Plan</div>
         <div class="plan-badge" id="planBadge">Free</div>
-        <button class="upgrade-btn" onclick="showPricing()">💰 Upgrade to Pro</button>
+        <button class="upgrade-btn" onclick="window.location.href='/pricing'">💰 Upgrade to Pro</button>
     </div>
 </div>
+
+<canvas id="bgCanvas" style="position:fixed;top:0;left:220px;right:0;bottom:0;width:calc(100vw - 220px);height:100vh;pointer-events:none;z-index:0"></canvas>
 
 <!-- MAIN -->
 <div class="main" id="mainContent">
@@ -265,21 +283,6 @@ body{font-family:'Outfit',sans-serif;background:#0b0f19;color:#e5e7eb;display:fl
         </div>
         </div>   <!-- your main card ends -->
 
-<!-- ✅ PASTE BELOW THIS -->
-
-<div class="card">
-    <h3>🖼️ Thumbnail Designer</h3>
-
-    <input type="file" id="refImg"><br><br>
-    <label>Reference Thumbnail</label><br><br>
-
-    <input type="file" id="userImg"><br><br>
-    <label>Your Image</label><br><br>
-
-    <button onclick="createThumbnail()">Create Thumbnail</button>
-</div>
-
-<div id="thumbResult"></div>
     </div>
 </div>
 
@@ -342,29 +345,6 @@ body{font-family:'Outfit',sans-serif;background:#0b0f19;color:#e5e7eb;display:fl
         <div class="success-sub">Your video has been edited successfully. Download your files below.</div>
         <div class="dl-grid" id="dlGrid"></div>
         <button class="back-btn" onclick="closeOverlay()">← Edit Another Video</button>
-    </div>
-</div>
-
-
-<!-- PRICING MODAL -->
-<div class="modal" id="pricingModal">
-    <div class="modal-box">
-        <div class="modal-title">⚡ Upgrade to Pro</div>
-        <div class="modal-sub">Unlock unlimited video edits and all features</div>
-        <div class="plan-cards">
-            <div class="plan-card">
-                <div class="plan-name">Free</div>
-                <div class="plan-price" style="color:#6b7280">$0</div>
-                <div class="plan-feat">2 videos/day<br>Basic features<br>720p export</div>
-            </div>
-            <div class="plan-card pro">
-                <div class="plan-name">Pro ⭐</div>
-                <div class="plan-price">$9/mo</div>
-                <div class="plan-feat">Unlimited videos<br>All features<br>4K export</div>
-            </div>
-        </div>
-        <button onclick="upgradePlan()" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#6366f1,#a855f7);color:white;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px">Upgrade Now — $9/mo</button>
-        <button class="modal-close" onclick="document.getElementById('pricingModal').classList.remove('show')">Maybe Later</button>
     </div>
 </div>
 
@@ -577,26 +557,20 @@ function showOverlayErr(msg) {
 }
 
 // ── Pricing ──
-function showPricing() {
-    document.getElementById("pricingModal").classList.add("show");
-}
-async function upgradePlan() {
-    await fetch("/upgrade", { method: "POST" });
-    document.getElementById("planBadge").textContent = "Pro ⭐";
-    document.getElementById("pricingModal").classList.remove("show");
-    alert("✅ Upgraded to Pro! Enjoy unlimited edits.");
-}
+
+
 
 // ── Load plan ──
-fetch("/get-plan").then(r => r.json()).then(d => {
-    if (d.plan === "pro") document.getElementById("planBadge").textContent = "Pro ⭐";
-});
+fetch('/get-plan').then(r=>r.json()).then(d=>{const pb=document.getElementById('planBadge');if(d.plan==='pro')pb.textContent='⭐ Pro';else if(d.plan==='max')pb.textContent='👑 Max';else pb.textContent='Free';}).catch(()=>{});
 
 // ── Resize canvas ──
 window.addEventListener("resize", () => {
     const canvas = document.getElementById("particleCanvas");
     if (canvas) { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 });
+
+// Background animation
+(function(){const canvas=document.getElementById('bgCanvas');if(!canvas)return;const ctx=canvas.getContext('2d');function resize(){canvas.width=canvas.offsetWidth;canvas.height=canvas.offsetHeight;}resize();window.addEventListener('resize',resize);const colors=['#6c63ff','#ff6b9d','#00d4aa','#4dc9f6','#ffa94d'];const pts=Array.from({length:55},()=>({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:Math.random()*1.4+.3,dx:(Math.random()-.5)*.25,dy:(Math.random()-.5)*.25,a:Math.random()*.35+.05,c:colors[Math.floor(Math.random()*5)]}));const orbs=[{x:.75,y:.2,r:260,c:'#6c63ff',s:.0004,o:0},{x:.2,y:.75,r:200,c:'#ff6b9d',s:.0006,o:2},{x:.85,y:.8,r:180,c:'#00d4aa',s:.0005,o:4}];function draw(t){ctx.clearRect(0,0,canvas.width,canvas.height);orbs.forEach(o=>{const cx=(o.x+Math.sin(t*o.s+o.o)*.06)*canvas.width,cy=(o.y+Math.cos(t*o.s+o.o)*.06)*canvas.height,g=ctx.createRadialGradient(cx,cy,0,cx,cy,o.r);g.addColorStop(0,o.c+'14');g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,o.r,0,Math.PI*2);ctx.fill();});pts.forEach(p=>{ctx.globalAlpha=p.a;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();p.x+=p.dx;p.y+=p.dy;if(p.x<0||p.x>canvas.width)p.dx*=-1;if(p.y<0||p.y>canvas.height)p.dy*=-1;});ctx.globalAlpha=1;requestAnimationFrame(draw);}requestAnimationFrame(draw);})();
 </script>
 </body>
 </html>
