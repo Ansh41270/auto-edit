@@ -1373,7 +1373,6 @@ if __name__ == "__main__":
     print("Server starting at http://127.0.0.1:5000")
     print("Register at:   http://127.0.0.1:5000/register")
     print("Script Writer: http://127.0.0.1:5000/script")
-    app.run(debug=True, port=5000)
 
 import os
 
