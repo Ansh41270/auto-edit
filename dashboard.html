@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Edit — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090f;
+  --surface:#0d1117;
+  --border:#161c27;
+  --text:#e8eaf0;
+  --muted:#4a5568;
+  --accent1:#6c63ff;
+  --accent2:#ff6b9d;
+  --accent3:#00d4aa;
+  --accent4:#ffa94d;
+  --accent5:#4dc9f6;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);display:flex}
+
+/* ── SIDEBAR ── */
+.sidebar{width:220px;background:#0a0d14;padding:20px;border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;z-index:10;position:relative}
+.logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:32px;color:#fff;display:flex;align-items:center;gap:10px}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--accent1);box-shadow:0 0 12px var(--accent1);animation:pulse-dot 2s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.4)}}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:4px;border-radius:10px;text-decoration:none;color:#6b7a99;font-size:14px;font-weight:500;transition:all .2s;position:relative;overflow:hidden}
+.nav a::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,var(--accent1),var(--accent2));opacity:0;transition:opacity .3s;border-radius:10px}
+.nav a:hover{color:#fff;transform:translateX(2px)}
+.nav a:hover::before{opacity:.08}
+.nav a.active{background:rgba(108,99,255,.12);color:#fff;border:1px solid rgba(108,99,255,.25)}
+.nav a.active::before{opacity:.06}
+.nav-icon{font-size:16px;z-index:1;position:relative}
+.nav-label{z-index:1;position:relative}
+.plan-box{margin-top:auto;background:linear-gradient(135deg,rgba(108,99,255,.1),rgba(255,107,157,.08));border:1px solid rgba(108,99,255,.2);border-radius:12px;padding:14px;text-align:center}
+.plan-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+.plan-badge{font-size:13px;font-weight:600;color:var(--accent1);margin-bottom:10px}
+.upgrade-btn{width:100%;padding:8px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--accent1),var(--accent2));color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity .2s}
+.upgrade-btn:hover{opacity:.85}
+
+/* ── MAIN ── */
+.main{flex:1;overflow-y:auto;position:relative}
+
+/* ── ANIMATED BG ── */
+.bg-canvas{position:fixed;top:0;left:220px;right:0;bottom:0;pointer-events:none;z-index:0}
+
+/* ── CONTENT ── */
+.content{position:relative;z-index:1;padding:36px 40px}
+
+/* ── HEADER ── */
+.header{margin-bottom:40px;animation:slideDown .6s ease both}
+@keyframes slideDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
+.greeting{font-size:13px;color:var(--muted);margin-bottom:6px;letter-spacing:.5px}
+.title{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;background:linear-gradient(135deg,#fff 30%,var(--accent1));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.2}
+.subtitle{font-size:14px;color:var(--muted);margin-top:8px}
+
+/* ── STATS ROW ── */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:36px;animation:fadeUp .6s .1s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;position:relative;overflow:hidden;transition:border-color .3s,transform .3s}
+.stat-card:hover{transform:translateY(-2px)}
+.stat-card::after{content:'';position:absolute;inset:0;opacity:0;transition:opacity .3s;border-radius:14px}
+.stat-card:nth-child(1)::after{background:radial-gradient(circle at 80% 20%,rgba(108,99,255,.15),transparent 60%)}
+.stat-card:nth-child(2)::after{background:radial-gradient(circle at 80% 20%,rgba(0,212,170,.15),transparent 60%)}
+.stat-card:nth-child(3)::after{background:radial-gradient(circle at 80% 20%,rgba(255,107,157,.15),transparent 60%)}
+.stat-card:hover::after{opacity:1}
+.stat-card:nth-child(1):hover{border-color:rgba(108,99,255,.4)}
+.stat-card:nth-child(2):hover{border-color:rgba(0,212,170,.4)}
+.stat-card:nth-child(3):hover{border-color:rgba(255,107,157,.4)}
+.stat-icon{font-size:22px;margin-bottom:10px}
+.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.stat-value{font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:#fff}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.stat-bar{height:3px;background:var(--border);border-radius:99px;margin-top:12px;overflow:hidden}
+.stat-fill{height:100%;border-radius:99px;transition:width 1s ease}
+.stat-card:nth-child(1) .stat-fill{background:linear-gradient(90deg,var(--accent1),#a78bfa)}
+.stat-card:nth-child(2) .stat-fill{background:linear-gradient(90deg,var(--accent3),#38ef7d)}
+.stat-card:nth-child(3) .stat-fill{background:linear-gradient(90deg,var(--accent2),var(--accent4))}
+
+/* ── FEATURE CARDS ── */
+.section-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:18px}
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;animation:fadeUp .6s .2s ease both}
+
+.feat-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px;cursor:pointer;position:relative;overflow:hidden;text-decoration:none;color:inherit;display:block;transition:transform .35s cubic-bezier(.34,1.56,.64,1),border-color .3s,box-shadow .3s;transform-style:preserve-3d}
+.feat-card:hover{transform:translateY(-6px) scale(1.01)}
+
+/* Per-card accent colors */
+.feat-card[data-color="purple"]:hover{border-color:rgba(108,99,255,.5);box-shadow:0 20px 60px rgba(108,99,255,.15)}
+.feat-card[data-color="cyan"]:hover{border-color:rgba(77,201,246,.5);box-shadow:0 20px 60px rgba(77,201,246,.15)}
+.feat-card[data-color="pink"]:hover{border-color:rgba(255,107,157,.5);box-shadow:0 20px 60px rgba(255,107,157,.15)}
+.feat-card[data-color="green"]:hover{border-color:rgba(0,212,170,.5);box-shadow:0 20px 60px rgba(0,212,170,.15)}
+.feat-card[data-color="orange"]:hover{border-color:rgba(255,169,77,.5);box-shadow:0 20px 60px rgba(255,169,77,.15)}
+.feat-card[data-color="red"]:hover{border-color:rgba(255,80,80,.5);box-shadow:0 20px 60px rgba(255,80,80,.15)}
+
+/* Hover particle canvas inside card */
+.card-canvas{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .4s;border-radius:18px}
+.feat-card:hover .card-canvas{opacity:1}
+
+/* Glow orb */
+.card-orb{position:absolute;width:120px;height:120px;border-radius:50%;filter:blur(50px);opacity:0;transition:opacity .4s,transform .4s;pointer-events:none;top:-30px;right:-30px}
+.feat-card:hover .card-orb{opacity:.35}
+.feat-card[data-color="purple"] .card-orb{background:var(--accent1)}
+.feat-card[data-color="cyan"] .card-orb{background:var(--accent5)}
+.feat-card[data-color="pink"] .card-orb{background:var(--accent2)}
+.feat-card[data-color="green"] .card-orb{background:var(--accent3)}
+.feat-card[data-color="orange"] .card-orb{background:var(--accent4)}
+.feat-card[data-color="red"] .card-orb{background:#ff5050}
+
+.card-content{position:relative;z-index:2}
+.card-icon-wrap{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:16px;transition:transform .3s}
+.feat-card:hover .card-icon-wrap{transform:scale(1.1) rotate(-4deg)}
+.feat-card[data-color="purple"] .card-icon-wrap{background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.3)}
+.feat-card[data-color="cyan"] .card-icon-wrap{background:rgba(77,201,246,.15);border:1px solid rgba(77,201,246,.3)}
+.feat-card[data-color="pink"] .card-icon-wrap{background:rgba(255,107,157,.15);border:1px solid rgba(255,107,157,.3)}
+.feat-card[data-color="green"] .card-icon-wrap{background:rgba(0,212,170,.15);border:1px solid rgba(0,212,170,.3)}
+.feat-card[data-color="orange"] .card-icon-wrap{background:rgba(255,169,77,.15);border:1px solid rgba(255,169,77,.3)}
+.feat-card[data-color="red"] .card-icon-wrap{background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3)}
+
+.card-name{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:#fff;margin-bottom:6px}
+.card-desc{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px}
+.card-arrow{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;transition:gap .3s,opacity .3s;opacity:0}
+.feat-card:hover .card-arrow{gap:10px;opacity:1}
+.feat-card[data-color="purple"] .card-arrow{color:var(--accent1)}
+.feat-card[data-color="cyan"] .card-arrow{color:var(--accent5)}
+.feat-card[data-color="pink"] .card-arrow{color:var(--accent2)}
+.feat-card[data-color="green"] .card-arrow{color:var(--accent3)}
+.feat-card[data-color="orange"] .card-arrow{color:var(--accent4)}
+.feat-card[data-color="red"] .card-arrow{color:#ff5050}
+
+.card-badge{position:absolute;top:16px;right:16px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:99px;letter-spacing:.5px;text-transform:uppercase}
+.badge-new{background:rgba(0,212,170,.15);border:1px solid rgba(0,212,170,.3);color:var(--accent3)}
+.badge-pro{background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.3);color:var(--accent1)}
+
+/* Bottom divider line that fills on hover */
+.card-line{position:absolute;bottom:0;left:0;height:2px;width:0;transition:width .4s ease;border-radius:0 0 18px 18px}
+.feat-card:hover .card-line{width:100%}
+.feat-card[data-color="purple"] .card-line{background:linear-gradient(90deg,var(--accent1),transparent)}
+.feat-card[data-color="cyan"] .card-line{background:linear-gradient(90deg,var(--accent5),transparent)}
+.feat-card[data-color="pink"] .card-line{background:linear-gradient(90deg,var(--accent2),transparent)}
+.feat-card[data-color="green"] .card-line{background:linear-gradient(90deg,var(--accent3),transparent)}
+.feat-card[data-color="orange"] .card-line{background:linear-gradient(90deg,var(--accent4),transparent)}
+.feat-card[data-color="red"] .card-line{background:linear-gradient(90deg,#ff5050,transparent)}
+
+/* ── STAGGER ANIMATION ── */
+.feat-card:nth-child(1){animation:fadeUp .6s .25s ease both}
+.feat-card:nth-child(2){animation:fadeUp .6s .32s ease both}
+.feat-card:nth-child(3){animation:fadeUp .6s .39s ease both}
+.feat-card:nth-child(4){animation:fadeUp .6s .46s ease both}
+.feat-card:nth-child(5){animation:fadeUp .6s .53s ease both}
+.feat-card:nth-child(6){animation:fadeUp .6s .60s ease both}
+
+/* scrollbar */
+.main::-webkit-scrollbar{width:4px}
+.main::-webkit-scrollbar-thumb{background:#1f2937;border-radius:99px}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <div class="logo">
+        <div class="logo-dot"></div>
+        AI Edit
+    </div>
+    <div class="nav">
+        <a class="active" href="/dashboard">
+            <span class="nav-icon">🏠</span>
+            <span class="nav-label">Dashboard</span>
+        </a>
+        <a href="/auto-edit">
+            <span class="nav-icon">🎬</span>
+            <span class="nav-label">Auto Edit</span>
+        </a>
+        <a href="/script">
+            <span class="nav-icon">✍️</span>
+            <span class="nav-label">Script Writer</span>
+        </a>
+        <a href="/thumbnail-page">
+            <span class="nav-icon">🖼️</span>
+            <span class="nav-label">Thumbnail</span>
+        </a>
+        <a href="/logout">
+            <span class="nav-icon">⏻</span>
+            <span class="nav-label">Logout</span>
+        </a>
+    </div>
+    <div class="plan-box">
+        <div class="plan-label">Current Plan</div>
+        <div class="plan-badge" id="planBadge">Free</div>
+        <button class="upgrade-btn" onclick="window.location.href='/pricing'">💰 Upgrade to Pro</button>
+    </div>
+</div>
+
+<!-- ANIMATED BACKGROUND -->
+<canvas class="bg-canvas" id="bgCanvas"></canvas>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+    <div class="content">
+
+        <!-- HEADER -->
+        <div class="header">
+            <div class="greeting">Welcome back 👋</div>
+            <div class="title">Your Creative Studio</div>
+            <div class="subtitle">Everything you need to create viral content — in one place.</div>
+        </div>
+
+        <!-- USAGE STATS -->
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-icon">🎬</div>
+                <div class="stat-label">Video Edits Today</div>
+                <div class="stat-value" id="statVE">0</div>
+                <div class="stat-sub" id="statVESub">of 1 used</div>
+                <div class="stat-bar"><div class="stat-fill" id="fillVE" style="width:0%"></div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✍️</div>
+                <div class="stat-label">Scripts Today</div>
+                <div class="stat-value" id="statSC">0</div>
+                <div class="stat-sub" id="statSCSub">of 2 used</div>
+                <div class="stat-bar"><div class="stat-fill" id="fillSC" style="width:0%"></div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🖼️</div>
+                <div class="stat-label">Thumbnails Today</div>
+                <div class="stat-value" id="statTH">0</div>
+                <div class="stat-sub" id="statTHSub">of 2 used</div>
+                <div class="stat-bar"><div class="stat-fill" id="fillTH" style="width:0%"></div></div>
+            </div>
+        </div>
+
+        <!-- FEATURES -->
+        <div class="section-title">All Features</div>
+        <div class="features-grid">
+
+            <a href="/auto-edit" class="feat-card" data-color="purple">
+                <canvas class="card-canvas"></canvas>
+                <div class="card-orb"></div>
+                <div class="card-line"></div>
+                <div class="card-content">
+                    <div class="card-icon-wrap">🎬</div>
+                    <div class="card-name">Auto Edit</div>
+                    <div class="card-desc">Upload your raw video and let AI cut silences, add subtitles, color grade and export automatically.</div>
+                    <div class="card-arrow">Open Studio <span>→</span></div>
+                </div>
+            </a>
+
+            <a href="/script" class="feat-card" data-color="cyan">
+                <canvas class="card-canvas"></canvas>
+                <div class="card-orb"></div>
+                <div class="card-line"></div>
+                <div class="card-content">
+                    <div class="card-icon-wrap">✍️</div>
+                    <div class="card-name">Script Writer</div>
+                    <div class="card-desc">Generate full YouTube video scripts with hooks, intros, CTAs and outros — in English or Hinglish.</div>
+                    <div class="card-arrow">Write Script <span>→</span></div>
+                </div>
+            </a>
+
+            <a href="/thumbnail-page" class="feat-card" data-color="pink">
+                <canvas class="card-canvas"></canvas>
+                <div class="card-orb"></div>
+                <div class="card-line"></div>
+                <div class="card-badge badge-new">New</div>
+                <div class="card-content">
+                    <div class="card-icon-wrap">🖼️</div>
+                    <div class="card-name">Thumbnail AI</div>
+                    <div class="card-desc">Upload a reference thumbnail and your photo. AI composites you into a professional YouTube thumbnail.</div>
+                    <div class="card-arrow">Create Thumbnail <span>→</span></div>
+                </div>
+            </a>
+
+            <a href="/pricing" class="feat-card" data-color="orange">
+                <canvas class="card-canvas"></canvas>
+                <div class="card-orb"></div>
+                <div class="card-line"></div>
+                <div class="card-badge badge-pro">Pro</div>
+                <div class="card-content">
+                    <div class="card-icon-wrap">💰</div>
+                    <div class="card-name">Upgrade Plan</div>
+                    <div class="card-desc">Unlock unlimited video edits, scripts, thumbnails and priority processing with Pro or Max.</div>
+                    <div class="card-arrow">View Plans <span>→</span></div>
+                </div>
+            </a>
+
+            <a href="/script" class="feat-card" data-color="green">
+                <canvas class="card-canvas"></canvas>
+                <div class="card-orb"></div>
+                <div class="card-line"></div>
+                <div class="card-content">
+                    <div class="card-icon-wrap">🌐</div>
+                    <div class="card-name">Hinglish Scripts</div>
+                    <div class="card-desc">Create scripts in Hindi using English letters — perfect for Indian YouTube channels and creators.</div>
+                    <div class="card-arrow">Try Hinglish <span>→</span></div>
+                </div>
+            </a>
+
+            <a href="/auto-edit" class="feat-card" data-color="red">
+                <canvas class="card-canvas"></canvas>
+                <div class="card-orb"></div>
+                <div class="card-line"></div>
+                <div class="card-content">
+                    <div class="card-icon-wrap">📤</div>
+                    <div class="card-name">Export & Upload</div>
+                    <div class="card-desc">Export in 16:9 YouTube and 9:16 Reels format. Upload directly to Google Drive from one click.</div>
+                    <div class="card-arrow">Start Exporting <span>→</span></div>
+                </div>
+            </a>
+
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Load usage stats ──
+fetch('/get-plan').then(r=>r.json()).then(d=>{
+    const pb = document.getElementById('planBadge');
+    if(d.plan==='pro') pb.textContent='⭐ Pro';
+    else if(d.plan==='max') pb.textContent='👑 Max';
+    else pb.textContent='Free';
+
+    const inf = x => x>=999 ? '∞' : x;
+    const setStatCard = (valId, subId, fillId, used, limit) => {
+        document.getElementById(valId).textContent = used;
+        document.getElementById(subId).textContent = `of ${inf(limit)} used`;
+        const pct = limit >= 999 ? (used > 0 ? 15 : 0) : Math.min(100, (used/limit)*100);
+        setTimeout(() => {
+            document.getElementById(fillId).style.width = pct + '%';
+        }, 600);
+    };
+    const ve = d.video_edit || {used:0, limit:1};
+    const sc = d.script     || {used:0, limit:2};
+    const th = d.thumbnail  || {used:0, limit:2};
+    setStatCard('statVE','statVESub','fillVE', ve.used, ve.limit);
+    setStatCard('statSC','statSCSub','fillSC', sc.used, sc.limit);
+    setStatCard('statTH','statTHSub','fillTH', th.used, th.limit);
+}).catch(()=>{});
+
+// ── BACKGROUND PARTICLE ANIMATION ──
+const bgCanvas = document.getElementById('bgCanvas');
+const bgCtx = bgCanvas.getContext('2d');
+
+function resizeBg() {
+    bgCanvas.width  = bgCanvas.offsetWidth;
+    bgCanvas.height = bgCanvas.offsetHeight;
+}
+resizeBg();
+window.addEventListener('resize', resizeBg);
+
+const BG_PARTICLES = Array.from({length:70}, () => ({
+    x: Math.random() * bgCanvas.width,
+    y: Math.random() * bgCanvas.height,
+    r: Math.random() * 1.5 + 0.3,
+    dx: (Math.random()-.5) * 0.3,
+    dy: (Math.random()-.5) * 0.3,
+    alpha: Math.random() * 0.4 + 0.05,
+    color: ['#6c63ff','#ff6b9d','#00d4aa','#4dc9f6','#ffa94d'][Math.floor(Math.random()*5)]
+}));
+
+// Floating orbs
+const ORBS = [
+    {x:.7, y:.2, r:280, color:'#6c63ff', speed:.0004, offset:0},
+    {x:.2, y:.7, r:220, color:'#ff6b9d', speed:.0006, offset:2},
+    {x:.8, y:.75, r:200, color:'#00d4aa', speed:.0005, offset:4},
+];
+
+function drawBg(t) {
+    bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
+    // Draw orbs
+    ORBS.forEach(o => {
+        const cx = (o.x + Math.sin(t*o.speed+o.offset)*0.06) * bgCanvas.width;
+        const cy = (o.y + Math.cos(t*o.speed+o.offset)*0.06) * bgCanvas.height;
+        const grad = bgCtx.createRadialGradient(cx,cy,0,cx,cy,o.r);
+        grad.addColorStop(0, o.color+'18');
+        grad.addColorStop(1, 'transparent');
+        bgCtx.fillStyle = grad;
+        bgCtx.beginPath();
+        bgCtx.arc(cx,cy,o.r,0,Math.PI*2);
+        bgCtx.fill();
+    });
+    // Draw particles
+    BG_PARTICLES.forEach(p => {
+        bgCtx.globalAlpha = p.alpha;
+        bgCtx.fillStyle   = p.color;
+        bgCtx.beginPath();
+        bgCtx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        bgCtx.fill();
+        p.x += p.dx; p.y += p.dy;
+        if(p.x<0||p.x>bgCanvas.width)  p.dx*=-1;
+        if(p.y<0||p.y>bgCanvas.height) p.dy*=-1;
+    });
+    bgCtx.globalAlpha=1;
+    requestAnimationFrame(drawBg);
+}
+requestAnimationFrame(drawBg);
+
+// ── CARD HOVER PARTICLE BURST ──
+document.querySelectorAll('.feat-card').forEach(card => {
+    const canvas = card.querySelector('.card-canvas');
+    const ctx    = canvas.getContext('2d');
+    let particles = [];
+    let animId   = null;
+    let running  = false;
+
+    // Get accent color from data attribute
+    const colorMap = {
+        purple:'#6c63ff', cyan:'#4dc9f6', pink:'#ff6b9d',
+        green:'#00d4aa',  orange:'#ffa94d', red:'#ff5050'
+    };
+    const accentColor = colorMap[card.dataset.color] || '#6c63ff';
+
+    function resizeCard() {
+        canvas.width  = card.offsetWidth;
+        canvas.height = card.offsetHeight;
+    }
+
+    function spawnParticles(mx, my) {
+        for(let i=0;i<4;i++) {
+            const angle = Math.random()*Math.PI*2;
+            const speed = Math.random()*1.5+0.5;
+            particles.push({
+                x: mx, y: my,
+                dx: Math.cos(angle)*speed,
+                dy: Math.sin(angle)*speed,
+                r: Math.random()*3+1,
+                alpha: .8,
+                decay: Math.random()*.02+.015,
+                color: accentColor
+            });
+        }
+    }
+
+    function drawCard() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        particles = particles.filter(p => p.alpha > 0);
+        particles.forEach(p => {
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle   = p.color;
+            // Glow
+            ctx.shadowBlur  = 10;
+            ctx.shadowColor = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+            ctx.fill();
+            ctx.shadowBlur=0;
+            p.x += p.dx; p.y += p.dy;
+            p.dy += .04; // gravity
+            p.alpha -= p.decay;
+        });
+        ctx.globalAlpha=1;
+        if(running || particles.length>0) animId = requestAnimationFrame(drawCard);
+    }
+
+    card.addEventListener('mouseenter', () => {
+        resizeCard();
+        running = true;
+        if(!animId) drawCard();
+    });
+
+    card.addEventListener('mousemove', e => {
+        const rect = canvas.getBoundingClientRect();
+        spawnParticles(e.clientX - rect.left, e.clientY - rect.top);
+    });
+
+    card.addEventListener('mouseleave', () => {
+        running = false;
+    });
+});
+
+// ── MOUSE TRAIL ON BACKGROUND ──
+let mouseTrail = [];
+document.querySelector('.main').addEventListener('mousemove', e => {
+    const rect = bgCanvas.getBoundingClientRect();
+    mouseTrail.push({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+        alpha: .6,
+        r: 3
+    });
+    if(mouseTrail.length > 20) mouseTrail.shift();
+});
+</script>
+</body>
+</html>
