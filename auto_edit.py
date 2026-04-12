@@ -3,25 +3,6 @@ import uuid
 import subprocess
 import threading
 import sqlite3
-
-import sqlite3
-
-def init_db():
-    conn = sqlite3.connect("users.db")
-    c = conn.cursor()
-
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE,
-        password_hash TEXT,
-        salt TEXT
-    )
-    """)
-
-    conn.commit()
-    conn.close()
-
 import hashlib
 import secrets
 import datetime
@@ -32,29 +13,42 @@ from flask import Flask, request, jsonify, session, redirect, send_from_director
 from werkzeug.utils import secure_filename
 from PIL import Image
 
-app = Flask(__name__, static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), static_url_path="")
-init_db()
-app.secret_key = "super_secret_key_change_this"
+# ════════════════════════════════════════════════════════
+#  APP SETUP
+# ════════════════════════════════════════════════════════
+
+app = Flask(
+    __name__,
+    static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"),
+    static_url_path=""
+)
+
+app.secret_key = os.environ.get("SECRET_KEY", "super_secret_key_change_this")
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = False
+app.config["SESSION_COOKIE_SECURE"] = True   # FIXED: must be True on Render (HTTPS)
 
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
-MUSIC_FOLDER = "music"
-DB_FILE = "users.db"
+MUSIC_FOLDER  = "music"
+THUMB_FOLDER  = "thumbnails"
+DB_FILE       = "users.db"
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-os.makedirs(MUSIC_FOLDER, exist_ok=True)
+for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER, MUSIC_FOLDER]:
+    os.makedirs(folder, exist_ok=True)
 
-ANTHROPIC_API_KEY = "YOUR_API_KEY_HERE"
-GOOGLE_DRIVE_FOLDER_ID = ""
-GOOGLE_CREDENTIALS_PATH = ""
+# Clean up if THUMB_FOLDER accidentally became a file
+if os.path.isfile(THUMB_FOLDER):
+    os.remove(THUMB_FOLDER)
+os.makedirs(THUMB_FOLDER, exist_ok=True)
+
+# IMPORTANT: Set ANTHROPIC_API_KEY as an environment variable in Render dashboard
+ANTHROPIC_API_KEY    = os.environ.get("ANTHROPIC_API_KEY", "")
+GOOGLE_DRIVE_FOLDER_ID   = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+GOOGLE_CREDENTIALS_PATH  = os.environ.get("GOOGLE_CREDENTIALS_PATH", "")
 
 jobs = {}
 
 
-# ════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════
 #  PLAN LIMITS & COUPON CODES
 # ════════════════════════════════════════════════════════
@@ -78,6 +72,7 @@ PLAN_PRICES = {
     "pro": {"monthly": 9,  "yearly": 90},
     "max": {"monthly": 29, "yearly": 290},
 }
+
 
 # ════════════════════════════════════════════════════════
 #  DATABASE
@@ -279,6 +274,11 @@ def process_payment(email, plan, billing, coupon_code=""):
     conn.close()
     return True, f"Payment successful! {plan.upper()} plan active until {expires}.", final
 
+
+# ════════════════════════════════════════════════════════
+#  AUTH DECORATOR
+# ════════════════════════════════════════════════════════
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -322,8 +322,9 @@ def upload_to_drive(file_path, filename):
 #  AI SCRIPT WRITER
 # ════════════════════════════════════════════════════════
 
-def generate_script(topic, style, duration_mins, audience="General", tone="Friendly", cta="Like & Subscribe", extra="", lang_instruction=""):
-    if not ANTHROPIC_API_KEY or ANTHROPIC_API_KEY == "YOUR_API_KEY_HERE":
+def generate_script(topic, style, duration_mins, audience="General", tone="Friendly",
+                    cta="Like & Subscribe", extra="", lang_instruction=""):
+    if not ANTHROPIC_API_KEY:
         lang_example = "Aaj hum baat karenge" if "Hinglish" in lang_instruction else "Today we will talk about"
         return f"""🎬 HOOK:
 {lang_example} {topic}... aur aaj ka video bahut kaam aayega!
@@ -468,8 +469,8 @@ def generate_subtitles(audio_path, out_srt):
         with open(out_srt, "w", encoding="utf-8") as f:
             for i, seg in enumerate(segments, 1):
                 start = _fmt_time(seg["start"])
-                end = _fmt_time(seg["end"])
-                text = seg["text"].strip()
+                end   = _fmt_time(seg["end"])
+                text  = seg["text"].strip()
                 f.write(f"{i}\n{start} --> {end}\n{text}\n\n")
         return True
     except ImportError:
@@ -479,8 +480,8 @@ def generate_subtitles(audio_path, out_srt):
 
 
 def _fmt_time(s):
-    h = int(s // 3600)
-    m = int((s % 3600) // 60)
+    h   = int(s // 3600)
+    m   = int((s % 3600) // 60)
     sec = s % 60
     return f"{h:02d}:{m:02d}:{sec:06.3f}".replace(".", ",")
 
@@ -538,7 +539,7 @@ def edit_pipeline(job_id, input_path, settings, music_path_input=None):
             run_cmd(f'ffmpeg -y -i "{cut_path}" -c copy "{graded_path}"', job_id, "Skipping color grade...", 28)
 
         # Step 4: Subtitles
-        srt_path = os.path.join(base, "subs.srt")
+        srt_path      = os.path.join(base, "subs.srt")
         subtitled_path = os.path.join(base, "subtitled.mp4")
         if settings.get("subtitles", True):
             generate_subtitles(audio_path, srt_path)
@@ -569,7 +570,7 @@ def edit_pipeline(job_id, input_path, settings, music_path_input=None):
         intro_path = os.path.join(base, "with_intro.mp4")
         if settings.get("intro_outro", True):
             title_text = settings.get("title", "My Video").replace("'", "\\'")
-            end_time = max(total_dur - 3, 0)
+            end_time   = max(total_dur - 3, 0)
             run_cmd(
                 f'ffmpeg -y -i "{music_mixed_path}" '
                 f'-vf "drawtext=text=\'{title_text}\':fontcolor=white:fontsize=48:'
@@ -639,42 +640,7 @@ def edit_pipeline(job_id, input_path, settings, music_path_input=None):
 
 
 # ════════════════════════════════════════════════════════
-#  ROUTES
-# ════════════════════════════════════════════════════════
-
-@app.route("/")
-@login_required
-def index():
-    return redirect("/dashboard")
-
-
-@app.route("/dashboard")
-@login_required
-def dashboard():
-    return send_from_directory(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), "dashboard.html")
-
-
-@app.route("/auto-edit")
-@login_required
-def auto_edit_page():
-    return send_from_directory(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), "auto_edit.html")
-
-# -------- THUMBNAIL FEATURE --------
-THUMB_FOLDER = "thumbnails"
-if os.path.isfile(THUMB_FOLDER):
-    os.remove(THUMB_FOLDER)
-os.makedirs(THUMB_FOLDER, exist_ok=True)
-
-
-@app.route("/thumbnail-page")
-@login_required
-def thumbnail_page():
-    return send_from_directory(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), "thumbnail.html")
-
-
-# ════════════════════════════════════════════════════════
-#  PROFESSIONAL THUMBNAIL ENGINE v4
-#  — Face swap + compositing like a real designer tool
+#  THUMBNAIL ENGINE
 # ════════════════════════════════════════════════════════
 
 def hex_to_rgb(h):
@@ -685,14 +651,14 @@ def hex_to_rgb(h):
 def get_best_font(size):
     from PIL import ImageFont
     paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
         "C:/Windows/Fonts/impact.ttf",
         "C:/Windows/Fonts/arialbd.ttf",
         "C:/Windows/Fonts/Arial_Bold.ttf",
         "C:/Windows/Fonts/verdanab.ttf",
         "C:/Windows/Fonts/calibrib.ttf",
         "C:/Windows/Fonts/arial.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
     ]
     for p in paths:
         if os.path.exists(p):
@@ -704,12 +670,11 @@ def get_best_font(size):
 
 
 def detect_face_region(img):
-    """Detect approximate face bounding box using simple skin-tone heuristic."""
-    import numpy as np
     arr = np.array(img.convert("RGB"))
     h, w = arr.shape[:2]
-    r, g, b = arr[:,:,0].astype(float), arr[:,:,1].astype(float), arr[:,:,2].astype(float)
-    # Skin tone mask: reddish, not too dark, not too bright
+    r = arr[:,:,0].astype(float)
+    g = arr[:,:,1].astype(float)
+    b = arr[:,:,2].astype(float)
     skin = (
         (r > 60) & (g > 40) & (b > 20) &
         (r > g) & (r > b) &
@@ -720,11 +685,9 @@ def detect_face_region(img):
     rows = np.where(skin.any(axis=1))[0]
     cols = np.where(skin.any(axis=0))[0]
     if len(rows) < 10 or len(cols) < 10:
-        # fallback: assume face is in upper-center area
         return (w//4, 0, 3*w//4, h//2)
     y1, y2 = int(rows.min()), int(rows.max())
     x1, x2 = int(cols.min()), int(cols.max())
-    # Add padding
     pad = 30
     x1 = max(0, x1 - pad)
     y1 = max(0, y1 - pad)
@@ -734,19 +697,11 @@ def detect_face_region(img):
 
 
 def extract_person_smart(user_img):
-    """
-    Smart person extraction:
-    1. Try rembg if installed (best quality)
-    2. Fall back to GrabCut-style edge detection
-    3. Final fallback: simple corner-color removal
-    """
     from PIL import ImageFilter
     PILImage = Image
-    import numpy as np
 
     img_rgba = user_img.convert("RGBA")
 
-    # ── Try rembg (best quality, pip install rembg) ──
     try:
         from rembg import remove as rembg_remove
         result = rembg_remove(img_rgba)
@@ -756,7 +711,6 @@ def extract_person_smart(user_img):
     except Exception:
         pass
 
-    # ── Try OpenCV GrabCut ──
     try:
         import cv2
         img_rgb = np.array(user_img.convert("RGB"))
@@ -764,16 +718,13 @@ def extract_person_smart(user_img):
         mask = np.zeros((h, w), np.uint8)
         bgd_model = np.zeros((1, 65), np.float64)
         fgd_model = np.zeros((1, 65), np.float64)
-        # Use center 70% as foreground rectangle
         margin_x = int(w * 0.10)
         margin_y = int(h * 0.05)
         rect = (margin_x, margin_y, w - 2*margin_x, h - 2*margin_y)
         cv2.grabCut(img_rgb, mask, rect, bgd_model, fgd_model, 8, cv2.GC_INIT_WITH_RECT)
         fg_mask = np.where((mask == 2) | (mask == 0), 0, 255).astype(np.uint8)
-        # Smooth the mask
         fg_mask = cv2.GaussianBlur(fg_mask, (7, 7), 0)
-        result = PILImage.fromarray(img_rgb)
-        result = result.convert("RGBA")
+        result = PILImage.fromarray(img_rgb).convert("RGBA")
         r, g, b, a = result.split()
         result = PILImage.merge("RGBA", (r, g, b, PILImage.fromarray(fg_mask)))
         return result
@@ -782,11 +733,8 @@ def extract_person_smart(user_img):
     except Exception:
         pass
 
-    # ── Fallback: edge-aware background removal ──
     img_arr = np.array(img_rgba)
     h, w = img_arr.shape[:2]
-
-    # Sample background from all 4 edges (top/bottom/left/right strips)
     edge_pixels = np.concatenate([
         img_arr[:8, :, :3].reshape(-1, 3),
         img_arr[-8:, :, :3].reshape(-1, 3),
@@ -794,67 +742,44 @@ def extract_person_smart(user_img):
         img_arr[:, -8:, :3].reshape(-1, 3),
     ])
     bg_color = np.median(edge_pixels, axis=0).astype(int)
-
-    # Build alpha mask: far from bg = opaque, close to bg = transparent
     diff = np.sqrt(np.sum((img_arr[:,:,:3].astype(int) - bg_color)**2, axis=2))
     tolerance = 55
-    feather = 30
+    feather   = 30
     alpha = np.clip((diff - tolerance) / feather * 255, 0, 255).astype(np.uint8)
-
-    # Keep center area more opaque (protect the person)
     cy, cx = h//2, w//2
     Y, X = np.ogrid[:h, :w]
     center_dist = np.sqrt(((X-cx)/(w*0.35))**2 + ((Y-cy)/(h*0.45))**2)
     center_boost = np.clip((1.0 - center_dist) * 180, 0, 180).astype(np.uint8)
     alpha = np.clip(alpha.astype(int) + center_boost, 0, 255).astype(np.uint8)
-
     result = img_rgba.copy()
-    result.putalpha(PILImage.fromarray(alpha))
-
-    # Smooth edges
     smooth_alpha = PILImage.fromarray(alpha).filter(ImageFilter.GaussianBlur(2))
     result.putalpha(smooth_alpha)
-
     return result
 
 
 def composite_person_onto_thumbnail(ref_img, person_img, position="right"):
-    """
-    Core compositing function:
-    - Scales person to fill ~65% height of thumbnail
-    - Places them on chosen side
-    - Adds matching color grading, edge glow, and shadow
-    - Returns composited RGBA image
-    """
-    from PIL import ImageFilter, ImageEnhance
+    from PIL import ImageFilter, ImageEnhance, ImageDraw
     PILImage = Image
-    import numpy as np
 
     W, H = ref_img.size
     ref_rgba = ref_img.convert("RGBA")
 
-    # ── Scale person ──
-    target_h = int(H * 1.05)  # slightly taller than canvas for bleed effect
-    aspect = person_img.width / person_img.height
+    target_h = int(H * 1.05)
+    aspect   = person_img.width / person_img.height
     target_w = int(target_h * aspect)
-
-    # Minimum width check
     if target_w < int(W * 0.3):
         target_w = int(W * 0.38)
         target_h = int(target_w / aspect)
 
     person_scaled = person_img.resize((target_w, target_h), PILImage.LANCZOS)
 
-    # ── Position ──
     if position == "right":
         px = W - target_w + int(target_w * 0.05)
     else:
         px = -int(target_w * 0.05)
-    py = H - target_h  # bottom-aligned
+    py = H - target_h
 
-    # ── Darken the reference bg on text side for better readability ──
     dark_layer = PILImage.new("RGBA", (W, H), (0, 0, 0, 0))
-    from PIL import ImageDraw
     dd = ImageDraw.Draw(dark_layer)
     if position == "right":
         dd.rectangle([0, 0, W//2 + 60, H], fill=(0, 0, 0, 90))
@@ -862,112 +787,77 @@ def composite_person_onto_thumbnail(ref_img, person_img, position="right"):
         dd.rectangle([W//2 - 60, 0, W, H], fill=(0, 0, 0, 90))
     ref_rgba = PILImage.alpha_composite(ref_rgba, dark_layer)
 
-    # ── Drop shadow behind person ──
     shadow_layer = PILImage.new("RGBA", (W, H), (0, 0, 0, 0))
     if person_scaled.mode == "RGBA":
-        alpha_ch = person_scaled.split()[3]
+        alpha_ch    = person_scaled.split()[3]
         shadow_alpha = PILImage.new("L", person_scaled.size, 0)
         shadow_alpha.paste(alpha_ch)
-        # Create dark version
-        shadow_img = PILImage.new("RGBA", person_scaled.size, (0, 0, 0, 0))
+        shadow_img  = PILImage.new("RGBA", person_scaled.size, (0, 0, 0, 0))
         shadow_data = np.array(shadow_img)
         shadow_data[:,:,3] = (np.array(shadow_alpha) * 0.65).astype(np.uint8)
-        shadow_pil = PILImage.fromarray(shadow_data).filter(ImageFilter.GaussianBlur(22))
-        shadow_layer.paste(shadow_pil, (px + 20, py + 20), shadow_pil)
-    ref_rgba = PILImage.alpha_composite(ref_rgba, shadow_layer)
+        shadow_pil = PILImage.fromarray(shadow_data, "RGBA")
+        shadow_blurred = shadow_pil.filter(ImageFilter.GaussianBlur(18))
+        shadow_layer.paste(shadow_blurred, (px + 18, py + 18), shadow_blurred)
 
-    # ── Edge glow (matches reference thumbnail accent color) ──
-    # Sample the dominant bright color from reference
-    ref_small = ref_img.resize((50, 28)).convert("RGB")
-    ref_arr = np.array(ref_small).reshape(-1, 3)
-    bright_mask = ref_arr.max(axis=1) > 180
-    if bright_mask.sum() > 5:
-        glow_color = ref_arr[bright_mask].mean(axis=0).astype(int)
-    else:
-        glow_color = np.array([100, 150, 255])
+    canvas = PILImage.alpha_composite(ref_rgba, shadow_layer)
 
+    glow_layer = PILImage.new("RGBA", (W, H), (0, 0, 0, 0))
     if person_scaled.mode == "RGBA":
-        glow_layer = PILImage.new("RGBA", (W, H), (0, 0, 0, 0))
-        glow_alpha = PILImage.new("L", (W, H), 0)
-        glow_alpha.paste(person_scaled.split()[3], (px, py))
-        glow_blurred = glow_alpha.filter(ImageFilter.GaussianBlur(25))
-        glow_arr = np.zeros((H, W, 4), dtype=np.uint8)
-        glow_arr[:,:,0] = int(glow_color[0])
-        glow_arr[:,:,1] = int(glow_color[1])
-        glow_arr[:,:,2] = int(glow_color[2])
-        glow_arr[:,:,3] = (np.array(glow_blurred) * 0.55).astype(np.uint8)
-        glow_pil = PILImage.fromarray(glow_arr)
-        ref_rgba = PILImage.alpha_composite(ref_rgba, glow_pil)
+        alpha_ch2 = person_scaled.split()[3]
+        glow_color = PILImage.new("RGBA", person_scaled.size, (255, 220, 80, 0))
+        glow_data  = np.array(glow_color)
+        glow_data[:,:,3] = (np.array(alpha_ch2) * 0.45).astype(np.uint8)
+        glow_pil = PILImage.fromarray(glow_data, "RGBA")
+        glow_blurred = glow_pil.filter(ImageFilter.GaussianBlur(12))
+        glow_layer.paste(glow_blurred, (px - 8, py - 8), glow_blurred)
 
-    # ── Color match person to reference ──
-    # Get average brightness of reference
-    ref_gray = np.array(ref_img.convert("L")).mean()
-    person_arr = np.array(person_scaled).astype(float)
-    if person_scaled.mode == "RGBA":
-        rgb = person_arr[:,:,:3]
-        person_gray = rgb.mean()
-        if person_gray > 10:
-            ratio = min(ref_gray / person_gray, 1.3)
-            rgb = np.clip(rgb * ratio, 0, 255)
-        person_arr[:,:,:3] = rgb
-        person_matched = PILImage.fromarray(person_arr.astype(np.uint8), "RGBA")
-    else:
-        person_matched = person_scaled
+    canvas = PILImage.alpha_composite(canvas, glow_layer)
 
-    # ── Paste person ──
     person_layer = PILImage.new("RGBA", (W, H), (0, 0, 0, 0))
-    if person_matched.mode == "RGBA":
-        person_layer.paste(person_matched, (px, py), person_matched)
+    if person_scaled.mode == "RGBA":
+        person_layer.paste(person_scaled, (px, py), person_scaled)
     else:
-        person_layer.paste(person_matched.convert("RGBA"), (px, py))
-    result = PILImage.alpha_composite(ref_rgba, person_layer)
+        person_layer.paste(person_scaled, (px, py))
 
-    return result
+    canvas = PILImage.alpha_composite(canvas, person_layer)
+    return canvas
 
 
-def add_text_overlay(img, headline, subtext, badge, position, niche, style):
-    """
-    Add professional text overlay on the opposite side from person.
-    Matches style of reference thumbnail text.
-    """
+def add_text_overlay(canvas, headline, subtext, badge, position, niche, style):
     from PIL import ImageDraw
     PILImage = Image
-    import numpy as np
 
-    W, H = img.size
-    canvas = img.convert("RGBA")
+    W, H = canvas.size
     draw = ImageDraw.Draw(canvas)
 
-    # Text zone
-    if position == "right":   # person is right, text is left
-        tx = 38
-        max_w = W // 2 - 60
-    else:                      # person is left, text is right
-        tx = W // 2 + 30
-        max_w = W // 2 - 60
+    if position == "right":
+        tx     = int(W * 0.04)
+        max_w  = int(W * 0.48)
+    else:
+        tx     = int(W * 0.52)
+        max_w  = int(W * 0.44)
 
-    # Sample accent color from the reference image
-    arr = np.array(img.convert("RGB"))
-    # Look for bright saturated pixels
-    hsv_approx_sat = (arr.max(axis=2).astype(int) - arr.min(axis=2).astype(int))
-    bright = arr[hsv_approx_sat > 80]
-    if len(bright) > 20:
-        accent = tuple(bright[np.argmax(bright.max(axis=1))].tolist())
+    style_lower = style.lower()
+    if "dark" in style_lower or "cinematic" in style_lower:
+        accent = (255, 60, 60)
+    elif "cool" in style_lower or "tech" in style_lower or "blue" in style_lower:
+        accent = (60, 180, 255)
+    elif "green" in style_lower or "nature" in style_lower:
+        accent = (60, 220, 100)
+    elif "pink" in style_lower or "beauty" in style_lower:
+        accent = (255, 100, 200)
     else:
         accent = (255, 200, 0)
 
-    # Font sizes — auto-fit
     def fit_font_lines(text, max_width):
         for size in [110, 90, 72, 58, 46]:
             f = get_best_font(size)
             words = text.split()
             if not words:
                 return f, [""]
-            # single line
             bb = draw.textbbox((0,0), text, font=f)
             if bb[2]-bb[0] <= max_width:
                 return f, [text]
-            # 2 lines
             if len(words) >= 2:
                 mid = len(words)//2
                 l1, l2 = " ".join(words[:mid]), " ".join(words[mid:])
@@ -975,7 +865,6 @@ def add_text_overlay(img, headline, subtext, badge, position, niche, style):
                 b2 = draw.textbbox((0,0), l2, font=f)
                 if max(b1[2]-b1[0], b2[2]-b2[0]) <= max_width:
                     return f, [l1, l2]
-            # 3 lines
             if len(words) >= 3:
                 t = len(words)//3
                 ls = [" ".join(words[t*i:t*(i+1)]) for i in range(3)]
@@ -984,17 +873,15 @@ def add_text_overlay(img, headline, subtext, badge, position, niche, style):
                     return f, ls
         return get_best_font(40), [text[:18]]
 
-    y = 55
+    y       = 55
     font_sm = get_best_font(36)
 
-    # ── Badge ──
     if badge and badge.strip():
         badge_layer = PILImage.new("RGBA", (W, H), (0,0,0,0))
         bl = ImageDraw.Draw(badge_layer)
         bb = bl.textbbox((0,0), badge.upper(), font=font_sm)
         bw = bb[2]-bb[0]+24
         bh = bb[3]-bb[1]+14
-        # Solid colored badge
         bl.rounded_rectangle([tx, y, tx+bw, y+bh], radius=5,
                               fill=(accent[0], accent[1], accent[2], 230))
         bl.text((tx+12, y+7), badge.upper(), font=font_sm, fill=(0,0,0,255))
@@ -1002,14 +889,10 @@ def add_text_overlay(img, headline, subtext, badge, position, niche, style):
         draw = ImageDraw.Draw(canvas)
         y += bh + 12
 
-    # ── Headline (big bold text like real YouTube thumbnails) ──
     chosen_font, lines = fit_font_lines(headline.upper(), max_w)
-
-    # Alternate colors: white / accent (like "CUSTOM" white + "YOUTUBE" yellow)
     colors = [(255,255,255), accent, (255,255,255)]
     for i, line in enumerate(lines):
-        color = colors[i % len(colors)]
-        # Strong stroke (black outline) — signature YouTube thumbnail style
+        color    = colors[i % len(colors)]
         stroke_w = 6
         for dx in range(-stroke_w, stroke_w+1, 2):
             for dy in range(-stroke_w, stroke_w+1, 2):
@@ -1020,7 +903,6 @@ def add_text_overlay(img, headline, subtext, badge, position, niche, style):
         y += (bb[3]-bb[1]) + 5
     y += 8
 
-    # ── Subtext ──
     if subtext and subtext.strip():
         font_sub = get_best_font(42)
         for dx, dy in [(-2,2),(2,2),(0,3)]:
@@ -1033,7 +915,6 @@ def add_text_overlay(img, headline, subtext, badge, position, niche, style):
 
 
 def call_claude_for_text(ref_b64, title, niche, style, extra):
-    """Ask Claude to generate the headline, badge, subtext for the thumbnail."""
     import json
 
     prompt = f"""You are a professional YouTube thumbnail designer. Look at this reference thumbnail.
@@ -1088,14 +969,50 @@ Rules:
     except Exception:
         pass
 
-    # Smart fallback
-    words = title.upper().split()
+    words    = title.upper().split()
     headline = " ".join(words[:4]) if len(words) >= 4 else title.upper()
     return {
         "headline": headline,
-        "subtext": niche,
-        "badge": "WATCH THIS"
+        "subtext":  niche,
+        "badge":    "WATCH THIS"
     }, "Fallback text used (set Anthropic API key for AI text generation)"
+
+
+# ════════════════════════════════════════════════════════
+#  ROUTES
+# ════════════════════════════════════════════════════════
+
+@app.route("/")
+@login_required
+def index():
+    return redirect("/dashboard")
+
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    return send_from_directory(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"),
+        "dashboard.html"
+    )
+
+
+@app.route("/auto-edit")
+@login_required
+def auto_edit_page():
+    return send_from_directory(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"),
+        "auto_edit.html"
+    )
+
+
+@app.route("/thumbnail-page")
+@login_required
+def thumbnail_page():
+    return send_from_directory(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"),
+        "thumbnail.html"
+    )
 
 
 @app.route("/thumbnail", methods=["POST"])
@@ -1108,7 +1025,7 @@ def thumbnail():
         return jsonify({"error": "Both reference and user images are required."}), 400
     allowed_t, used_t, limit_t = check_feature_limit(session["user"], "thumbnail")
     if not allowed_t:
-        return jsonify({"error": f"Daily thumbnail limit reached ({used_t}/{limit_t}). Upgrade to Pro for unlimited.", "limit_reached": True}), 403
+        return jsonify({"error": f"Daily thumbnail limit reached ({used_t}/{limit_t}). Upgrade to Pro.", "limit_reached": True}), 403
     consume_feature(session["user"], "thumbnail")
 
     ref_file  = request.files["ref"]
@@ -1127,7 +1044,6 @@ def thumbnail():
     out1_path = os.path.join(job_dir, "thumb1.png")
     out2_path = os.path.join(job_dir, "thumb2.png")
 
-    # Save uploads
     try:
         ref_pil  = PILImage.open(ref_file).convert("RGB")
         user_pil = PILImage.open(user_file).convert("RGBA")
@@ -1136,33 +1052,28 @@ def thumbnail():
     except Exception as e:
         return jsonify({"error": f"Could not open images: {str(e)}"}), 400
 
-    # Encode reference for Claude
     with open(ref_path, "rb") as f:
         ref_b64 = base64.b64encode(f.read()).decode("utf-8")
 
-    # Get AI text content
     text_data, analysis = call_claude_for_text(ref_b64, title, niche, style, extra)
     headline = text_data.get("headline", title.upper())
     subtext  = text_data.get("subtext", "")
     badge    = text_data.get("badge", "")
 
-    # Extract person (remove background)
     try:
         person_extracted = extract_person_smart(user_pil)
     except Exception as e:
         return jsonify({"error": f"Person extraction failed: {str(e)}"}), 500
 
-    # ── VARIANT 1: Person on RIGHT ──
     try:
-        comp1 = composite_person_onto_thumbnail(ref_pil, person_extracted, "right")
+        comp1  = composite_person_onto_thumbnail(ref_pil, person_extracted, "right")
         final1 = add_text_overlay(comp1, headline, subtext, badge, "right", niche, style)
         final1.convert("RGB").save(out1_path, "PNG")
     except Exception as e:
         return jsonify({"error": f"Variant 1 failed: {str(e)}"}), 500
 
-    # ── VARIANT 2: Person on LEFT ──
     try:
-        comp2 = composite_person_onto_thumbnail(ref_pil, person_extracted, "left")
+        comp2  = composite_person_onto_thumbnail(ref_pil, person_extracted, "left")
         final2 = add_text_overlay(comp2, headline, subtext, badge, "left", niche, style)
         final2.convert("RGB").save(out2_path, "PNG")
     except Exception as e:
@@ -1180,28 +1091,32 @@ def thumbnail():
 @app.route("/thumb-output/<job_id>/<int:num>")
 @login_required
 def thumb_output(job_id, num):
-    filename = f"thumb{num}.png"
+    filename  = f"thumb{num}.png"
     directory = os.path.abspath(os.path.join(THUMB_FOLDER, job_id))
     return send_file(os.path.join(directory, filename), mimetype="image/png")
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form.get("email", "").strip()
+        email    = request.form.get("email", "").strip()
         password = request.form.get("password", "").strip()
         if verify_user(email, password):
             session["user"] = email
             return redirect("/")
         return redirect("/login?error=1")
-    return send_from_directory(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), "login.html")
+    return send_from_directory(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"),
+        "login.html"
+    )
 
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        email = request.form.get("email", "").strip()
+        email    = request.form.get("email", "").strip()
         password = request.form.get("password", "").strip()
-        confirm = request.form.get("confirm", "").strip()
+        confirm  = request.form.get("confirm", "").strip()
         if not email or not password:
             return redirect("/register?error=empty")
         if password != confirm:
@@ -1212,7 +1127,10 @@ def register():
         if success:
             return redirect("/register?registered=1")
         return redirect("/register?error=exists")
-    return send_from_directory(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), "register.html")
+    return send_from_directory(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"),
+        "register.html"
+    )
 
 
 @app.route("/logout")
@@ -1224,7 +1142,10 @@ def logout():
 @app.route("/pricing")
 @login_required
 def pricing_page():
-    return send_from_directory(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), "pricing.html")
+    return send_from_directory(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"),
+        "pricing.html"
+    )
 
 
 @app.route("/get-plan")
@@ -1290,12 +1211,13 @@ def upgrade():
     conn.close()
     return jsonify({"success": True})
 
+
 @app.route("/upload", methods=["POST"])
 @login_required
 def upload():
     user = session["user"]
     if get_user_plan(user) == "free" and not can_edit(user):
-        return jsonify({"error": "Free limit reached (2/day). Upgrade to Pro."}), 403
+        return jsonify({"error": "Free limit reached (1/day). Upgrade to Pro."}), 403
 
     if "video" not in request.files:
         return jsonify({"error": "No video file provided"}), 400
@@ -1303,26 +1225,26 @@ def upload():
     if not file.filename:
         return jsonify({"error": "Empty filename"}), 400
 
-    job_id = str(uuid.uuid4())
-    filename = secure_filename(file.filename)
+    job_id    = str(uuid.uuid4())
+    filename  = secure_filename(file.filename)
     save_path = os.path.join(UPLOAD_FOLDER, f"{job_id}_{filename}")
     file.save(save_path)
 
     music_save_path = None
     if "music" in request.files and request.files["music"].filename:
-        music_file = request.files["music"]
+        music_file     = request.files["music"]
         music_filename = secure_filename(music_file.filename)
         music_save_path = os.path.join(MUSIC_FOLDER, f"{job_id}_{music_filename}")
         music_file.save(music_save_path)
 
     settings = {
-        "cut_silences": request.form.get("cut_silences", "true") == "true",
-        "subtitles": request.form.get("subtitles", "true") == "true",
-        "color_grade": request.form.get("color_grade", "warm"),
-        "title": request.form.get("title", "My Video"),
-        "intro_outro": request.form.get("intro_outro", "true") == "true",
-        "both_formats": request.form.get("both_formats", "true") == "true",
-        "music_volume": float(request.form.get("music_volume", "0.15")),
+        "cut_silences":  request.form.get("cut_silences", "true") == "true",
+        "subtitles":     request.form.get("subtitles", "true") == "true",
+        "color_grade":   request.form.get("color_grade", "warm"),
+        "title":         request.form.get("title", "My Video"),
+        "intro_outro":   request.form.get("intro_outro", "true") == "true",
+        "both_formats":  request.form.get("both_formats", "true") == "true",
+        "music_volume":  float(request.form.get("music_volume", "0.15")),
         "upload_to_drive": request.form.get("upload_to_drive", "false") == "true",
     }
 
@@ -1358,26 +1280,29 @@ def download(job_id, filename):
 @app.route("/script")
 @login_required
 def script_page():
-    return send_from_directory(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), "script.html")
+    return send_from_directory(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"),
+        "script.html"
+    )
 
 
 @app.route("/generate-script", methods=["POST"])
 @login_required
 def generate_script_route():
-    data = request.get_json()
-    topic = data.get("topic", "").strip()
-    style = data.get("style", "Educational")
+    data     = request.get_json()
+    topic    = data.get("topic", "").strip()
+    style    = data.get("style", "Educational")
     duration = data.get("duration", 5)
     audience = data.get("audience", "General Audience")
-    tone = data.get("tone", "Friendly & Casual")
-    cta = data.get("cta", "Like & Subscribe")
-    extra = data.get("extra", "")
+    tone     = data.get("tone", "Friendly & Casual")
+    cta      = data.get("cta", "Like & Subscribe")
+    extra    = data.get("extra", "")
     lang_instruction = data.get("lang_instruction", "")
     if not topic:
         return jsonify({"error": "Topic is required"}), 400
     allowed_s, used_s, limit_s = check_feature_limit(session["user"], "script")
     if not allowed_s:
-        return jsonify({"error": f"Daily script limit reached ({used_s}/{limit_s}). Upgrade to Pro for unlimited.", "limit_reached": True}), 403
+        return jsonify({"error": f"Daily script limit reached ({used_s}/{limit_s}). Upgrade to Pro.", "limit_reached": True}), 403
     consume_feature(session["user"], "script")
     script, error = generate_script(topic, style, duration, audience, tone, cta, extra, lang_instruction)
     if error:
@@ -1385,17 +1310,15 @@ def generate_script_route():
     return jsonify({"script": script})
 
 
-
-
+# ════════════════════════════════════════════════════════
+#  ENTRY POINT  — only ONE block, reads PORT from Render
+# ════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     init_db()
-    print("Server starting at http://127.0.0.1:5000")
-    print("Register at:   http://127.0.0.1:5000/register")
-    print("Script Writer: http://127.0.0.1:5000/script")
-
-import os
-
-if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    print(f"Server starting at http://0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)
+
+# This line runs init_db at import time (for gunicorn)
+init_db()
