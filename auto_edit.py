@@ -3,6 +3,25 @@ import uuid
 import subprocess
 import threading
 import sqlite3
+
+import sqlite3
+
+def init_db():
+    conn = sqlite3.connect("users.db")
+    c = conn.cursor()
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE,
+        password_hash TEXT,
+        salt TEXT
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
 import hashlib
 import secrets
 import datetime
@@ -14,6 +33,7 @@ from werkzeug.utils import secure_filename
 from PIL import Image
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), static_url_path="")
+init_db()
 app.secret_key = "super_secret_key_change_this"
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = False
