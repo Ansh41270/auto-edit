@@ -1,5 +1,7 @@
-flask
+flask>=3.0.0
+werkzeug>=3.0.0
+requests>=2.31.0
+openai-whisper>=20231117
 gunicorn
-pillow
-requests
 numpy
+pillow
