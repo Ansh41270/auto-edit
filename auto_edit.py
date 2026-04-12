@@ -35,6 +35,31 @@ jobs = {}
 
 
 # ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
+#  PLAN LIMITS & COUPON CODES
+# ════════════════════════════════════════════════════════
+
+PLAN_LIMITS = {
+    "free": {"video_edits_per_day": 1, "scripts_per_day": 2, "thumbnails_per_day": 2, "label": "Free"},
+    "pro":  {"video_edits_per_day": 999, "scripts_per_day": 999, "thumbnails_per_day": 999, "label": "Pro"},
+    "max":  {"video_edits_per_day": 999, "scripts_per_day": 999, "thumbnails_per_day": 999, "label": "Max"},
+}
+
+COUPON_CODES = {
+    "ANSH50":    ("pro",  50,  "50% off Pro plan"),
+    "LAUNCH25":  ("pro",  25,  "25% off — Launch offer"),
+    "MAXFREE":   ("max",  100, "Free Max plan — Special"),
+    "PROFREE":   ("pro",  100, "Free Pro plan — Special"),
+    "SAVE20":    ("pro",  20,  "20% off Pro plan"),
+    "YOUTUBE10": ("pro",  10,  "10% off for YouTubers"),
+}
+
+PLAN_PRICES = {
+    "pro": {"monthly": 9,  "yearly": 90},
+    "max": {"monthly": 29, "yearly": 290},
+}
+
+# ════════════════════════════════════════════════════════
 #  DATABASE
 # ════════════════════════════════════════════════════════
 
@@ -48,14 +73,28 @@ def init_db():
             password_hash TEXT NOT NULL,
             salt TEXT NOT NULL,
             plan TEXT DEFAULT 'free',
+            plan_expires TEXT DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     c.execute("""
-        CREATE TABLE IF NOT EXISTS usage (
+        CREATE TABLE IF NOT EXISTS feature_usage (
             email TEXT,
+            feature TEXT,
             date TEXT,
-            count INTEGER
+            count INTEGER,
+            PRIMARY KEY (email, feature, date)
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT,
+            plan TEXT,
+            amount REAL,
+            coupon TEXT,
+            billing TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()
@@ -102,31 +141,123 @@ def verify_user(email, password):
 def get_user_plan(email):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT plan FROM users WHERE email = ?", (email.lower().strip(),))
+    c.execute("SELECT plan, plan_expires FROM users WHERE email = ?", (email.lower().strip(),))
     row = c.fetchone()
     conn.close()
-    return row[0] if row else "free"
+    if not row:
+        return "free"
+    plan, expires = row
+    if plan != "free" and expires:
+        try:
+            exp = datetime.datetime.strptime(expires, "%Y-%m-%d").date()
+            if datetime.date.today() > exp:
+                conn2 = sqlite3.connect(DB_FILE)
+                conn2.execute("UPDATE users SET plan='free', plan_expires=NULL WHERE email=?",
+                              (email.lower().strip(),))
+                conn2.commit()
+                conn2.close()
+                return "free"
+        except:
+            pass
+    return plan or "free"
 
 
-def can_edit(email):
+def check_feature_limit(email, feature):
+    plan = get_user_plan(email)
+    limit_key = f"{feature}s_per_day"
+    limit = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"]).get(limit_key, 1)
+    if limit >= 999:
+        return True, 0, 999
     today = str(datetime.date.today())
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT count FROM usage WHERE email=? AND date=?", (email, today))
+    c.execute("SELECT count FROM feature_usage WHERE email=? AND feature=? AND date=?",
+              (email, feature, today))
     row = c.fetchone()
-    if not row:
-        c.execute("INSERT INTO usage VALUES (?, ?, ?)", (email, today, 1))
-        conn.commit()
-        conn.close()
-        return True
-    if row[0] >= 2:
-        conn.close()
-        return False
-    c.execute("UPDATE usage SET count = count + 1 WHERE email=? AND date=?", (email, today))
+    used = row[0] if row else 0
+    conn.close()
+    return (used < limit), used, limit
+
+
+def consume_feature(email, feature):
+    today = str(datetime.date.today())
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT count FROM feature_usage WHERE email=? AND feature=? AND date=?",
+              (email, feature, today))
+    row = c.fetchone()
+    if row:
+        c.execute("UPDATE feature_usage SET count=count+1 WHERE email=? AND feature=? AND date=?",
+                  (email, feature, today))
+    else:
+        c.execute("INSERT INTO feature_usage (email,feature,date,count) VALUES (?,?,?,1)",
+                  (email, feature, today))
     conn.commit()
     conn.close()
-    return True
 
+
+def can_edit(email):
+    allowed, used, limit = check_feature_limit(email, "video_edit")
+    if allowed:
+        consume_feature(email, "video_edit")
+    return allowed
+
+
+def get_usage_summary(email):
+    today = str(datetime.date.today())
+    plan = get_user_plan(email)
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT feature, count FROM feature_usage WHERE email=? AND date=?", (email, today))
+    rows = {r[0]: r[1] for r in c.fetchall()}
+    conn.close()
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+    return {
+        "plan": plan,
+        "plan_label": limits.get("label", "Free"),
+        "video_edit": {"used": rows.get("video_edit", 0), "limit": limits["video_edits_per_day"]},
+        "script":     {"used": rows.get("script", 0),     "limit": limits["scripts_per_day"]},
+        "thumbnail":  {"used": rows.get("thumbnail", 0),  "limit": limits["thumbnails_per_day"]},
+    }
+
+
+def apply_coupon(email, coupon_code, billing="monthly"):
+    code = coupon_code.strip().upper()
+    if code not in COUPON_CODES:
+        return False, "Invalid coupon code.", 0
+    plan, discount, description = COUPON_CODES[code]
+    days = 365 if billing == "yearly" else 30
+    expires = (datetime.date.today() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute("UPDATE users SET plan=?, plan_expires=? WHERE email=?",
+                 (plan, expires, email.lower().strip()))
+    conn.execute("INSERT INTO payments (email,plan,amount,coupon,billing) VALUES (?,?,?,?,?)",
+                 (email, plan, 0, code, billing))
+    conn.commit()
+    conn.close()
+    return True, f"Coupon applied! You now have {plan.upper()} plan until {expires}.", discount
+
+
+def process_payment(email, plan, billing, coupon_code=""):
+    if plan not in PLAN_PRICES:
+        return False, "Invalid plan.", 0
+    base = PLAN_PRICES[plan]["yearly"] if billing == "yearly" else PLAN_PRICES[plan]["monthly"]
+    discount = 0
+    if coupon_code:
+        code = coupon_code.strip().upper()
+        if code in COUPON_CODES:
+            _, discount, _ = COUPON_CODES[code]
+    final = round(base * (1 - discount/100), 2)
+    days = 365 if billing == "yearly" else 30
+    expires = (datetime.date.today() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute("UPDATE users SET plan=?, plan_expires=? WHERE email=?",
+                 (plan, expires, email.lower().strip()))
+    conn.execute("INSERT INTO payments (email,plan,amount,coupon,billing) VALUES (?,?,?,?,?)",
+                 (email, plan, final, coupon_code, billing))
+    conn.commit()
+    conn.close()
+    return True, f"Payment successful! {plan.upper()} plan active until {expires}.", final
 
 def login_required(f):
     @wraps(f)
@@ -494,6 +625,18 @@ def edit_pipeline(job_id, input_path, settings, music_path_input=None):
 @app.route("/")
 @login_required
 def index():
+    return redirect("/dashboard")
+
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    return send_from_directory(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), "dashboard.html")
+
+
+@app.route("/auto-edit")
+@login_required
+def auto_edit_page():
     return send_from_directory(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), "auto_edit.html")
 
 # -------- THUMBNAIL FEATURE --------
@@ -577,7 +720,8 @@ def extract_person_smart(user_img):
     2. Fall back to GrabCut-style edge detection
     3. Final fallback: simple corner-color removal
     """
-    from PIL import Image as PILImage, ImageFilter
+    from PIL import ImageFilter
+    PILImage = Image
     import numpy as np
 
     img_rgba = user_img.convert("RGBA")
@@ -662,7 +806,8 @@ def composite_person_onto_thumbnail(ref_img, person_img, position="right"):
     - Adds matching color grading, edge glow, and shadow
     - Returns composited RGBA image
     """
-    from PIL import Image as PILImage, ImageFilter, ImageEnhance
+    from PIL import ImageFilter, ImageEnhance
+    PILImage = Image
     import numpy as np
 
     W, H = ref_img.size
@@ -765,7 +910,8 @@ def add_text_overlay(img, headline, subtext, badge, position, niche, style):
     Add professional text overlay on the opposite side from person.
     Matches style of reference thumbnail text.
     """
-    from PIL import Image as PILImage, ImageDraw
+    from PIL import ImageDraw
+    PILImage = Image
     import numpy as np
 
     W, H = img.size
@@ -935,11 +1081,15 @@ Rules:
 @app.route("/thumbnail", methods=["POST"])
 @login_required
 def thumbnail():
-    from PIL import Image as PILImage
     import base64
+    PILImage = Image
 
     if "ref" not in request.files or "user" not in request.files:
         return jsonify({"error": "Both reference and user images are required."}), 400
+    allowed_t, used_t, limit_t = check_feature_limit(session["user"], "thumbnail")
+    if not allowed_t:
+        return jsonify({"error": f"Daily thumbnail limit reached ({used_t}/{limit_t}). Upgrade to Pro for unlimited.", "limit_reached": True}), 403
+    consume_feature(session["user"], "thumbnail")
 
     ref_file  = request.files["ref"]
     user_file = request.files["user"]
@@ -1051,22 +1201,74 @@ def logout():
     return redirect("/login")
 
 
+@app.route("/pricing")
+@login_required
+def pricing_page():
+    return send_from_directory(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), "pricing.html")
+
+
 @app.route("/get-plan")
 @login_required
 def get_plan():
-    return jsonify({"plan": get_user_plan(session["user"])})
+    return jsonify(get_usage_summary(session["user"]))
+
+
+@app.route("/usage-summary")
+@login_required
+def usage_summary():
+    return jsonify(get_usage_summary(session["user"]))
+
+
+@app.route("/check-coupon", methods=["POST"])
+@login_required
+def check_coupon():
+    data = request.get_json()
+    code = data.get("coupon", "").strip().upper()
+    if code not in COUPON_CODES:
+        return jsonify({"valid": False, "message": "Invalid coupon code"})
+    plan, discount, description = COUPON_CODES[code]
+    return jsonify({"valid": True, "plan": plan, "discount": discount,
+                    "description": description, "message": f"✅ {description}"})
+
+
+@app.route("/apply-coupon", methods=["POST"])
+@login_required
+def apply_coupon_route():
+    data    = request.get_json()
+    code    = data.get("coupon", "")
+    billing = data.get("billing", "monthly")
+    success, message, discount = apply_coupon(session["user"], code, billing)
+    if success:
+        return jsonify({"success": True, "message": message,
+                        "plan": get_user_plan(session["user"]), "discount": discount})
+    return jsonify({"success": False, "message": message})
+
+
+@app.route("/process-payment", methods=["POST"])
+@login_required
+def payment_route():
+    data    = request.get_json()
+    plan    = data.get("plan", "pro")
+    billing = data.get("billing", "monthly")
+    coupon  = data.get("coupon", "")
+    upi_id  = data.get("upi_id", "")
+    if not upi_id or "@" not in upi_id:
+        return jsonify({"success": False, "message": "Please enter a valid UPI ID (e.g. name@upi)"})
+    success, message, amount = process_payment(session["user"], plan, billing, coupon)
+    if success:
+        return jsonify({"success": True, "message": message, "amount": amount,
+                        "plan": get_user_plan(session["user"])})
+    return jsonify({"success": False, "message": message})
 
 
 @app.route("/upgrade", methods=["POST"])
 @login_required
 def upgrade():
     conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("UPDATE users SET plan='pro' WHERE email=?", (session["user"],))
+    conn.execute("UPDATE users SET plan='pro' WHERE email=?", (session["user"],))
     conn.commit()
     conn.close()
     return jsonify({"success": True})
-
 
 @app.route("/upload", methods=["POST"])
 @login_required
@@ -1153,6 +1355,10 @@ def generate_script_route():
     lang_instruction = data.get("lang_instruction", "")
     if not topic:
         return jsonify({"error": "Topic is required"}), 400
+    allowed_s, used_s, limit_s = check_feature_limit(session["user"], "script")
+    if not allowed_s:
+        return jsonify({"error": f"Daily script limit reached ({used_s}/{limit_s}). Upgrade to Pro for unlimited.", "limit_reached": True}), 403
+    consume_feature(session["user"], "script")
     script, error = generate_script(topic, style, duration, audience, tone, cta, extra, lang_instruction)
     if error:
         return jsonify({"error": error}), 500
