@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Edit — Shorts Editor</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9342440344903007" crossorigin="anonymous"></script>
+<style>
+
+:root{--bg:#07090f;--surface:#0d1117;--border:#161c27;--accent1:#6c63ff;--accent2:#ff6b9d;--accent3:#00d4aa;--accent4:#ffa94d;--accent5:#4dc9f6}
+*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%;overflow:hidden}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:#e8eaf0;display:flex}
+.sidebar{width:220px;background:#0a0d14;padding:20px;border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;z-index:10}
+.logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:32px;color:#fff;display:flex;align-items:center;gap:10px}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--accent1);box-shadow:0 0 12px var(--accent1);animation:pd 2s ease-in-out infinite;flex-shrink:0}
+@keyframes pd{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.4)}}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:4px;border-radius:10px;text-decoration:none;color:#6b7a99;font-size:14px;font-weight:500;transition:all .2s}
+.nav a:hover{color:#fff;background:rgba(255,255,255,.04);transform:translateX(3px)}
+.nav a.active{background:rgba(108,99,255,.12);color:#fff;border:1px solid rgba(108,99,255,.25)}
+.plan-box{margin-top:auto;background:linear-gradient(135deg,rgba(108,99,255,.1),rgba(255,107,157,.08));border:1px solid rgba(108,99,255,.2);border-radius:12px;padding:14px;text-align:center}
+.plan-label{font-size:10px;color:#4a5568;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+.plan-badge{font-size:13px;font-weight:600;color:var(--accent1);margin-bottom:10px}
+.upgrade-btn{width:100%;padding:8px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--accent1),var(--accent2));color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity .2s}
+.upgrade-btn:hover{opacity:.85}
+#bgCanvas{position:fixed;top:0;left:220px;right:0;bottom:0;width:calc(100vw - 220px);height:100vh;pointer-events:none;z-index:0}
+.main{flex:1;overflow-y:auto;position:relative;z-index:1;padding:28px 32px}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;animation:fadeDown .5s ease both}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:translateY(0)}}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.back-btn{display:flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:transparent;color:#6b7a99;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s;text-decoration:none}
+.back-btn:hover{border-color:#374151;color:#e8eaf0}
+.fmt-badge{display:flex;align-items:center;gap:7px;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:700;letter-spacing:.3px}
+.page-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#fff}
+.layout{display:grid;grid-template-columns:1fr 340px;gap:20px}
+@media(max-width:1100px){.layout{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;animation:fadeUp .5s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.card:nth-child(1){animation-delay:.05s}.card:nth-child(2){animation-delay:.1s}.card:nth-child(3){animation-delay:.15s}.card:nth-child(4){animation-delay:.2s}
+.card-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#6b7a99;text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;display:flex;align-items:center;gap:7px}
+/* UPLOAD ZONE */
+.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:36px 20px;text-align:center;cursor:pointer;transition:all .25s;display:block;position:relative}
+.upload-zone:hover{border-color:var(--accent1);background:rgba(108,99,255,.03)}
+.upload-zone.has-file{border-color:var(--accent3);background:rgba(0,212,170,.03)}
+.upload-zone input{display:none}
+.upload-icon{font-size:38px;margin-bottom:10px}
+.upload-hint{font-size:13px;color:#6b7a99;line-height:1.6}
+.upload-name{display:none;font-size:12px;color:var(--accent3);margin-top:8px;font-weight:500}
+.upload-name.show{display:block}
+.upload-preview{display:none;width:100%;border-radius:8px;margin-top:10px;max-height:140px;object-fit:cover}
+.upload-preview.show{display:block}
+/* FIELDS */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;color:#4a5568;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;padding:10px 13px;border-radius:8px;border:1px solid var(--border);background:#07090f;color:#e8eaf0;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent1)}
+.field select option{background:#0d1117}
+.field textarea{resize:vertical;min-height:60px}
+/* TOGGLES */
+.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;color:#e8eaf0}
+.toggle-row:last-of-type{border-bottom:none}
+.toggle-sub{font-size:11px;color:#4a5568;margin-top:2px}
+.sw{position:relative;width:40px;height:22px;flex-shrink:0}
+.sw input{opacity:0;width:0;height:0}
+.sl{position:absolute;inset:0;background:#1f2937;border-radius:99px;cursor:pointer;transition:.2s}
+.sl::before{content:'';position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:#4a5568;border-radius:50%;transition:.2s}
+.sw input:checked+.sl{background:rgba(108,99,255,.25);border:1px solid var(--accent1)}
+.sw input:checked+.sl::before{transform:translateX(18px);background:var(--accent1)}
+/* GRADE PILLS */
+.grade-pills{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
+.gp{padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:transparent;color:#6b7a99;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s}
+.gp:hover{border-color:#374151;color:#e8eaf0}
+.gp.active{background:rgba(108,99,255,.12);border-color:var(--accent1);color:var(--accent1)}
+/* VOLUME SLIDER */
+.vol-row{display:flex;align-items:center;gap:10px}
+.vol-row input[type=range]{flex:1;accent-color:var(--accent1)}
+.vol-val{font-size:12px;color:#6b7a99;width:34px;text-align:right}
+/* START BTN */
+.start-btn{width:100%;padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Syne',sans-serif;letter-spacing:.3px;transition:all .25s;margin-top:4px;position:relative;overflow:hidden}
+.start-btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,.08);opacity:0;transition:opacity .2s}
+.start-btn:hover::after{opacity:1}
+.start-btn:disabled{opacity:.4;cursor:not-allowed}
+/* FORMAT INFO BADGE */
+.fmt-info{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.fmt-info-item{font-size:11px;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.04);border:1px solid var(--border);color:#6b7a99;display:flex;align-items:center;gap:5px}
+/* OVERLAY */
+.overlay{display:none;position:fixed;inset:0;background:#07090f;z-index:2000;flex-direction:column;justify-content:center;align-items:center}
+.overlay.show{display:flex;animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.ov-title{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;color:#fff;margin-bottom:6px;text-align:center}
+.ov-title em{font-style:normal;background:linear-gradient(135deg,var(--accent1),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.ov-sub{font-size:14px;color:#4a5568;margin-bottom:28px;text-align:center}
+.ov-ring{position:relative;width:130px;height:130px;margin:0 auto 24px}
+.ov-ring svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:var(--border);stroke-width:8}
+.ring-fill{fill:none;stroke:url(#rg);stroke-width:8;stroke-linecap:round;stroke-dasharray:351;stroke-dashoffset:351;transition:stroke-dashoffset .5s ease}
+.ring-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:#fff}
+.ov-steps{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-bottom:24px}
+.os{padding:4px 12px;border-radius:99px;font-size:11px;border:1px solid var(--border);color:#374151;transition:all .35s}
+.os.active{border-color:var(--accent2);color:var(--accent2);background:rgba(255,107,157,.08);box-shadow:0 0 10px rgba(255,107,157,.2)}
+.os.done{border-color:var(--accent3);color:var(--accent3);background:rgba(0,212,170,.06)}
+.ov-msg{font-size:13px;color:#4a5568;margin-bottom:20px;min-height:20px;text-align:center}
+.ov-cancel{padding:10px 28px;border:1px solid var(--border);background:transparent;color:#6b7a99;border-radius:9px;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s}
+.ov-cancel:hover{border-color:#ef4444;color:#ef4444}
+.err-box{display:none;margin-top:14px;padding:10px 16px;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-radius:9px;color:#f87171;font-size:13px;text-align:center}
+.err-box.show{display:block}
+/* RESULTS */
+.ov-results{display:none;text-align:center;max-width:680px;padding:40px;animation:fadeUp .4s ease both}
+.ov-results.show{display:block}
+.res-icon{font-size:56px;margin-bottom:12px;animation:pop .4s ease}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+.res-title{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--accent3);margin-bottom:6px}
+.res-sub{font-size:13px;color:#6b7a99;margin-bottom:24px}
+.dl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px;text-align:left}
+.dl-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px;transition:.2s}
+.dl-card:hover{border-color:var(--accent1);transform:translateY(-2px)}
+.dl-icon{font-size:22px;margin-bottom:5px}
+.dl-label{font-size:11px;color:#6b7a99;margin-bottom:7px}
+.dl-btn{display:block;text-align:center;padding:7px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:7px;color:#e8eaf0;text-decoration:none;font-size:12px;transition:.2s}
+.dl-btn:hover{border-color:var(--accent1);color:var(--accent1)}
+.res-back{padding:11px 28px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--accent1),var(--accent2));color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:'Syne',sans-serif;transition:opacity .2s}
+.res-back:hover{opacity:.88}
+
+/* FORMAT-SPECIFIC ACCENT */
+.fmt-badge{background:rgba(255,169,77,.12);border:1px solid rgba(255,169,77,.3);color:#ffa94d;padding:5px 13px;border-radius:99px;font-weight:700;font-size:12px;letter-spacing:.3px}
+.start-btn{background:linear-gradient(135deg,#ffa94d,#ff5050);color:#fff}
+.upload-zone:hover{border-color:#ffa94d}
+.upload-zone.has-file{border-color:var(--accent3)}
+.card-title{color:#ffa94d}
+</style>
+</head>
+<body>
+<div class="sidebar">
+    <div class="logo"><div class="logo-dot"></div>AI Edit</div>
+    <div class="nav">
+        <a href="/dashboard">🏠 Dashboard</a>
+        <a class="active" href="/auto-edit">🎬 Auto Edit</a>
+        <a href="/script">✍️ Script Writer</a>
+        <a href="/thumbnail-page">🖼️ Thumbnail</a>
+        <a href="/logout">⏻ Logout</a>
+    </div>
+    <div class="plan-box">
+        <div class="plan-label">Current Plan</div>
+        <div class="plan-badge" id="planBadge">Free</div>
+        <button class="upgrade-btn" onclick="window.location.href='/pricing'">💰 Upgrade to Pro</button>
+    </div>
+</div>
+<canvas id="bgCanvas"></canvas>
+
+<div class="main">
+    <!-- TOPBAR -->
+    <div class="topbar">
+        <div class="topbar-left">
+            <a href="/auto-edit" class="back-btn">← Formats</a>
+            <div class="fmt-badge">⚡ Shorts Editor</div>
+        </div>
+        <div style="font-size:12px;color:#4a5568">Vertical 9:16 • ≤60 sec • Fast cuts</div>
+    </div>
+
+    <div class="layout">
+        <!-- LEFT: Upload + Music -->
+        <div>
+            <div class="card">
+                <div class="card-title">📁 Upload Video</div>
+                <div class="fmt-info">
+                    <span class="fmt-info-item">📐 Vertical 9:16</span>
+                    <span class="fmt-info-item">⏱ Fast cuts</span>
+                    <span class="fmt-info-item" style="color:#ffa94d">🎨 Vivid</span>
+                </div>
+                <label class="upload-zone" id="videoZone" for="videoFile">
+                    <input type="file" id="videoFile" accept="video/*">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-hint">Click to upload video<br><span style="font-size:11px;color:#374151">MP4, MOV, AVI, MKV supported</span></div>
+                    <div class="upload-name" id="videoName"></div>
+                    <img class="upload-preview" id="videoPreview" alt="">
+                </label>
+            </div>
+
+            <div class="card">
+            <div class="card-title">🎵 Background Music</div>
+            <label class="upload-zone" for="musicFile" style="padding:16px 14px">
+                <input type="file" id="musicFile" accept="audio/*">
+                <div style="font-size:13px;color:#6b7a99">🎵 Upload music (optional) — MP3, WAV</div>
+            </label>
+            <div class="field" style="margin-top:12px;margin-bottom:0">
+                <label>Music Volume</label>
+                <div class="vol-row">
+                    <input type="range" id="musicVol" min="0" max="0.5" step="0.01" value="0.12"
+                        oninput="document.getElementById('volVal').textContent=Math.round(this.value*100)+'%'">
+                    <span class="vol-val" id="volVal">12%</span>
+                </div>
+            </div>
+        </div>
+
+            <div class="card">
+                <div class="card-title">📝 Video Details</div>
+                <div class="field">
+                    <label>Video Title</label>
+                    <input type="text" id="titleInput" placeholder="Enter your video title...">
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">🎨 Color Grade</div>
+                <div class="grade-pills">
+                    <button class="gp active" data-grade="vivid">✨ Vivid</button>
+                        <button class="gp" data-grade="warm">🔥 Warm</button>
+                        <button class="gp" data-grade="cinematic">🎬 Cinema</button>
+                        <button class="gp" data-grade="vintage">📷 Vintage</button>
+                        
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Settings + Start -->
+        <div>
+            <div class="card">
+                <div class="card-title">⚙️ Edit Settings</div>
+                <div class="toggle-row">
+                    <div><div>✂️ Aggressive Cuts</div><div class="toggle-sub">Max silence removal for pace</div></div>
+                    <label class="sw"><input type="checkbox" id="tCut" checked><span class="sl"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div>💬 Big Captions</div><div class="toggle-sub">Trending bold subtitle style</div></div>
+                    <label class="sw"><input type="checkbox" id="tSubs" checked><span class="sl"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div>🔬 AI Enhance</div><div class="toggle-sub">Sharpen + color boost</div></div>
+                    <label class="sw"><input type="checkbox" id="tQuality" checked><span class="sl"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div>🎬 Outro Card</div><div class="toggle-sub">Subscribe prompt at end</div></div>
+                    <label class="sw"><input type="checkbox" id="tIntro" ><span class="sl"></span></label>
+                </div>
+                
+            </div>
+
+            <div class="card">
+                <div class="card-title">🎞️ Transition Style</div>
+                <div class="grade-pills" id="transPills">
+                    <button class="gp active" data-grade="fade" onclick="selTrans(this)">🌊 Fade</button>
+                    <button class="gp" data-grade="zoom" onclick="selTrans(this)">🔍 Zoom</button>
+                    <button class="gp" data-grade="blur" onclick="selTrans(this)">💨 Blur</button>
+                </div>
+            </div>
+
+            <button class="start-btn" id="startBtn" onclick="startEdit()">▶ START SHORTS EDIT</button>
+        </div>
+    </div>
+</div>
+
+<!-- PROCESSING OVERLAY -->
+<div class="overlay" id="editOverlay">
+    <div id="ovContent" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:40px;max-width:560px">
+        <div class="ov-title">AI is <em>Editing</em></div>
+        <div class="ov-sub">Shorts Editor · Vertical 9:16</div>
+        <div class="ov-ring">
+            <svg width="130" height="130" viewBox="0 0 130 130">
+                <defs><linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#ffa94d"/>
+                    <stop offset="100%" stop-color="var(--accent2)"/>
+                </linearGradient></defs>
+                <circle class="ring-bg" cx="65" cy="65" r="56"/>
+                <circle class="ring-fill" id="ringFill" cx="65" cy="65" r="56"/>
+            </svg>
+            <div class="ring-pct" id="ringPct">0%</div>
+        </div>
+        <div class="ov-steps">
+            <div class="os" id="os1">🎙 Audio</div>
+            <div class="os" id="os2">✂ Quick Cut</div>
+            <div class="os" id="os3">🎨 Color</div>
+            <div class="os" id="os4">💬 Captions</div>
+            <div class="os" id="os5">🎵 Music</div>
+            <div class="os" id="os6">📤 Export</div>
+            
+        </div>
+        <div class="ov-msg" id="ovMsg">Preparing your video...</div>
+        <button class="ov-cancel" onclick="cancelEdit()">✕ Cancel</button>
+        <div class="err-box" id="errBox"></div>
+    </div>
+    <div class="ov-results" id="ovResults">
+        <div class="res-icon">✅</div>
+        <div class="res-title">Ready!</div>
+        <div class="res-sub">Your shorts video is edited and ready to download</div>
+        <div class="dl-grid" id="dlGrid"></div>
+        <button class="res-back" onclick="document.getElementById('editOverlay').classList.remove('show');document.getElementById('startBtn').disabled=false">← Edit Another</button>
+    </div>
+</div>
+
+<script>
+function selTrans(btn) {
+    document.getElementById('transPills').querySelectorAll('.gp').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedTrans = btn.dataset.grade;
+}
+
+let selectedGrade = 'vivid';
+let selectedTrans = 'fade';
+let jobId = null;
+let pollTimer = null;
+let cancelled = false;
+let animId = null;
+
+fetch('/get-plan').then(r=>r.json()).then(d=>{
+    const pb=document.getElementById('planBadge');
+    if(d.plan==='pro') pb.textContent='⭐ Pro';
+    else if(d.plan==='max') pb.textContent='👑 Max';
+    else pb.textContent='Free';
+}).catch(()=>{});
+
+// File upload
+function setupUpload(inputId, previewId, nameId, zoneId) {
+    document.getElementById(inputId).addEventListener('change', function() {
+        const file = this.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const img = document.getElementById(previewId);
+            if(img) { img.src=ev.target.result; img.classList.add('show'); }
+            document.getElementById(nameId).textContent = '✅ ' + file.name;
+            document.getElementById(nameId).classList.add('show');
+            document.getElementById(zoneId).classList.add('has-file');
+        };
+        reader.readAsDataURL(file);
+    });
+}
+setupUpload('videoFile','videoPreview','videoName','videoZone');
+
+// Grade pills
+document.querySelectorAll('.gp').forEach(b => {
+    b.addEventListener('click', () => {
+        b.closest('.grade-pills').querySelectorAll('.gp').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        selectedGrade = b.dataset.grade;
+    });
+});
+
+// Progress ring
+function setRing(pct) {
+    const circ = 351;
+    document.getElementById('ringFill').style.strokeDashoffset = circ - (pct/100)*circ;
+    document.getElementById('ringPct').textContent = pct + '%';
+}
+
+// Step pills
+const STEP_LABELS = ["🎙 Audio","✂ Quick Cut","🎨 Color","💬 Captions","🎵 Music","📤 Export"];
+function updateSteps(pct) {
+    STEP_LABELS.forEach((s,i) => {
+        const el = document.getElementById('os'+(i+1));
+        if(!el) return;
+        const atPct = (i+1) / STEP_LABELS.length * 95;
+        const donePct = (i+2) / STEP_LABELS.length * 95;
+        if(pct >= donePct) { el.classList.remove('active'); el.classList.add('done'); }
+        else if(pct >= atPct) { el.classList.add('active'); el.classList.remove('done'); }
+    });
+}
+
+function showOverlay() {
+    document.getElementById('editOverlay').classList.add('show');
+    document.getElementById('ovContent').style.display='flex';
+    document.getElementById('ovContent').style.flexDirection='column';
+    document.getElementById('ovContent').style.alignItems='center';
+    document.getElementById('ovResults').classList.remove('show');
+    document.getElementById('errBox').classList.remove('show');
+    document.querySelectorAll('.os').forEach(s=>s.classList.remove('active','done'));
+    setRing(0);
+    cancelled = false;
+}
+
+function cancelEdit() {
+    cancelled = true;
+    if(pollTimer) clearInterval(pollTimer);
+    document.getElementById('editOverlay').classList.remove('show');
+    document.getElementById('startBtn').disabled = false;
+}
+
+async function startEdit() {
+    const fi = document.getElementById('videoFile');
+    if(!fi.files[0]) { alert('Please select a video file!'); return; }
+    document.getElementById('startBtn').disabled = true;
+    showOverlay();
+
+    const fd = new FormData();
+    fd.append('video', fi.files[0]);
+    fd.append('title',         document.getElementById('titleInput')?.value || 'My Video');
+    fd.append('color_grade',   selectedGrade);
+    fd.append('format',        'shorts');
+    fd.append('cut_silences',  document.getElementById('tCut')?.checked ?? true);
+    fd.append('subtitles',     document.getElementById('tSubs')?.checked ?? true);
+    fd.append('intro_outro',   document.getElementById('tIntro')?.checked ?? false);
+    fd.append('quality_enhance', document.getElementById('tQuality')?.checked ?? true);
+    fd.append('transitions',   document.getElementById('tTrans')?.checked ?? true);
+    fd.append('transition_type', selectedTrans);
+    fd.append('both_formats',  'false');
+    fd.append('music_volume',  document.getElementById('musicVol')?.value || '0.12');
+    const mf = document.getElementById('musicFile');
+    if(mf && mf.files[0]) fd.append('music', mf.files[0]);
+
+    try {
+        const res = await fetch('/upload', {method:'POST', body:fd});
+        const data = await res.json();
+        if(data.error) { showErr(data.error); return; }
+        jobId = data.job_id;
+        pollTimer = setInterval(pollStatus, 1500);
+    } catch(e) { showErr('Upload failed: ' + e.message); }
+}
+
+async function pollStatus() {
+    if(cancelled) return;
+    try {
+        const res = await fetch('/status/' + jobId);
+        const data = await res.json();
+        document.getElementById('ovMsg').textContent = data.message || 'Processing...';
+        setRing(data.progress || 0);
+        updateSteps(data.progress || 0);
+        if(data.status === 'done') {
+            clearInterval(pollTimer);
+            showResults(data.output_files);
+        } else if(data.status === 'error') {
+            clearInterval(pollTimer);
+            showErr(data.message);
+        }
+    } catch(e) {}
+}
+
+function showResults(files) {
+    document.getElementById('ovContent').style.display='none';
+    const grid = document.getElementById('dlGrid');
+    grid.innerHTML = '';
+    const items = [
+        {key:'landscape', icon:'📺', label:'YouTube 1080p 16:9'},
+        {key:'portrait',  icon:'📱', label:'Reels/Shorts 9:16'},
+        {key:'square',    icon:'⬛', label:'Instagram 1:1'},
+        {key:'srt',       icon:'💬', label:'Subtitles .srt', isDl:true},
+        {key:'landscape_drive', icon:'☁️', label:'Google Drive', isLink:true},
+    ];
+    items.forEach(item => {
+        if(!files[item.key]) return;
+        grid.innerHTML += `<div class="dl-card"><div class="dl-icon">${item.icon}</div><div class="dl-label">${item.label}</div><a class="dl-btn" href="${files[item.key]}" ${item.isLink?'target="_blank"':'download'}>⬇ Download</a></div>`;
+    });
+    document.getElementById('ovResults').classList.add('show');
+}
+
+function showErr(msg) {
+    const el = document.getElementById('errBox');
+    el.textContent = '⚠️ ' + msg;
+    el.classList.add('show');
+    document.getElementById('startBtn').disabled = false;
+}
+
+(function(){const c=document.getElementById('bgCanvas'),ctx=c.getContext('2d');function r(){c.width=c.offsetWidth;c.height=c.offsetHeight;}r();window.addEventListener('resize',r);const colors=['#6c63ff','#ff6b9d','#00d4aa','#4dc9f6','#ffa94d'];const pts=Array.from({length:50},()=>({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.4+.3,dx:(Math.random()-.5)*.22,dy:(Math.random()-.5)*.22,a:Math.random()*.3+.04,col:colors[Math.floor(Math.random()*5)]}));const orbs=[{x:.75,y:.2,r:250,col:'#6c63ff',s:.0004,o:0},{x:.2,y:.75,r:190,col:'#ff6b9d',s:.0006,o:2},{x:.85,y:.8,r:170,col:'#00d4aa',s:.0005,o:4}];function draw(t){ctx.clearRect(0,0,c.width,c.height);orbs.forEach(o=>{const cx=(o.x+Math.sin(t*o.s+o.o)*.06)*c.width,cy=(o.y+Math.cos(t*o.s+o.o)*.06)*c.height,g=ctx.createRadialGradient(cx,cy,0,cx,cy,o.r);g.addColorStop(0,o.col+'12');g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,o.r,0,Math.PI*2);ctx.fill();});pts.forEach(p=>{ctx.globalAlpha=p.a;ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();p.x+=p.dx;p.y+=p.dy;if(p.x<0||p.x>c.width)p.dx*=-1;if(p.y<0||p.y>c.height)p.dy*=-1;});ctx.globalAlpha=1;requestAnimationFrame(draw);}requestAnimationFrame(draw);})();
+
+</script>
+</body>
+</html>
